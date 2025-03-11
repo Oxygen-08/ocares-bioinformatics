@@ -1,0 +1,41 @@
+# Core scientific packages
+numpy==1.24.3
+pandas==2.0.2
+scipy==1.10.1
+
+# Visualization
+matplotlib==3.7.1
+seaborn==0.12.2
+plotly==5.15.0
+
+# Bioinformatics packages
+biopython==1.81
+pysam==0.21.0
+blast==2.13.0
+
+# Sequence analysis
+scikit-bio==0.5.8
+dendropy==4.5.2
+mummer==4.0.0rc1
+pygenomeviz==0.3.5
+
+# Machine learning and statistics
+scikit-learn==1.2.2
+statsmodels==0.14.0
+
+# Jupyter notebooks
+jupyter==1.0.0
+ipykernel==6.23.1
+notebook==6.5.4
+
+# Additional utilities
+PyVCF==0.6.8
+pyfaidx==0.7.2
+alignlib==0.5.0
+pybedtools==0.9.0
+bcbio-gff==0.7.0
+
+# General purpose
+tqdm==4.65.0
+requests==2.31.0
+

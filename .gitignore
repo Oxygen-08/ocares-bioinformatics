@@ -1,0 +1,152 @@
+# Bioinformatics data files
+*.fasta
+*.fastq
+*.fa
+*.fq
+*.sam
+*.bam
+*.vcf
+*.gff
+*.gtf
+*.bed
+*.wig
+*.bigwig
+*.maf
+*.mum
+*.delta
+*.coords
+*.xmfa
+*.gb
+*.gbk
+*.genbank
+*.pdb
+*.aln
+*.blast
+*.hmm
+*.prf
+*.msa
+*.dnd
+*.phylip
+*.nwk
+*.newick
+
+# Ignore large data directories
+data/raw_genomes/
+data/reference_genomes/
+data/processed_genomes/
+results/alignments/
+results/blast_results/
+
+# Allow specific example data files to be included with "!" prefix if needed
+# !data/reference_genomes/example.fasta
+
+# Temporary/intermediate files
+temp/
+tmp/
+.temp/
+.tmp/
+*.tmp
+*.temp
+*.swp
+*~
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+.python-version
+
+# System specific files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# IDE and editor files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+*.swp
+*.swo
+*~
+.ropeproject/
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Large graphics files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.tiff
+*.bmp
+*.pdf
+*.ps
+*.svg
+*.eps
+
+# Allow specific graphics in the repo (for documentation)
+!docs/*.png
+!docs/*.jpg
+!docs/*.pdf
+!docs/*.svg
+
+# Log files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore authentication and config files with sensitive information
+.netrc
+*_auth_token
+*_config.json
+.credentials/
+credentials.json
+
