@@ -1,3 +1,9 @@
+# Rendered notebook exports — regenerate locally with: jupyter nbconvert --to html
+docs/*.html
+
+# Local data directory — FASTA inputs live here but are never committed (too large)
+data/
+
 # Bioinformatics data files
 *.fasta
 *.fastq
