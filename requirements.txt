@@ -39,3 +39,7 @@ bcbio-gff==0.7.0
 tqdm==4.65.0
 requests==2.31.0
 
+
+# Dev tools
+nbstripout>=0.7.1
+pre-commit>=3.0.0
