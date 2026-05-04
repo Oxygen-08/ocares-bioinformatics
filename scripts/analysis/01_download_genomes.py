@@ -90,7 +90,8 @@ class StrainInfo:
     pathotype:      str           # PATHOGENIC | COMMENSAL | K12 | PROBIOTIC | LAB_B
     virulence_basis: str          # key virulence genes / published basis
     pmid:           int           # PMID of genome/pathotype paper
-    gcf:            Optional[str] = field(default=None)  # known GCF (None = search)
+    gcf:            Optional[str] = field(default=None)  # RefSeq GCF accession
+    gca:            Optional[str] = field(default=None)  # GenBank GCA accession (DDBJ/ENA)
 
 
 # ── Curated strain manifest ───────────────────────────────────────────────────
@@ -112,24 +113,32 @@ PATHOGENIC: list[StrainInfo] = [
                gcf="GCF_000006665.1"),
 
     # Kulasekara BR et al. (2009) J Bacteriol 191:4569. 2006 spinach outbreak.
+    # Chromosome CP001368 → GCF_000026565.1 (chromosome-level assembly on RefSeq)
     StrainInfo("O157H7_TW14359", "Escherichia coli O157:H7 str. TW14359",
-               "EHEC", "stx2c,LEE,eae-gamma", 19710192),
+               "EHEC", "stx2c,LEE,eae-gamma", 19710192,
+               gcf="GCF_000026565.1"),
 
     # Eppinger M et al. (2011) J Bacteriol 193:3556. 2006 beef outbreak.
+    # Chromosome CP001637 → GCF_000020125.1
     StrainInfo("O157H7_EC4115",  "Escherichia coli O157:H7 str. EC4115",
-               "EHEC", "stx2,LEE,eae-gamma", 21478298),
+               "EHEC", "stx2,LEE,eae-gamma", 21478298,
+               gcf="GCF_000020125.1"),
 
-    # Ogura Y et al. (2009) PLoS Genet 5:e1000644. Complete genome AP010958.
+    # Ogura Y et al. (2009) PLoS Genet 5:e1000644. Chromosome AP010958 (DDBJ).
+    # DDBJ-submitted: GCA accession; not all are in RefSeq GCF
     StrainInfo("O26H11_11368",   "Escherichia coli O26:H11 str. 11368",
-               "EHEC", "stx1,LEE,eae-beta", 19750004),
+               "EHEC", "stx1,LEE,eae-beta", 19750004,
+               gca="GCA_000026545.1"),
 
-    # Ogura Y et al. (2009) PLoS Genet 5:e1000644. Complete genome AP010960.
+    # Ogura Y et al. (2009). Chromosome AP010960 (DDBJ).
     StrainInfo("O103H2_12009",   "Escherichia coli O103:H2 str. 12009",
-               "EHEC", "stx1,LEE,eae-epsilon", 19750004),
+               "EHEC", "stx1,LEE,eae-epsilon", 19750004,
+               gca="GCA_000022225.1"),
 
-    # Ogura Y et al. (2009) PLoS Genet 5:e1000644. Complete genome AP010962.
+    # Ogura Y et al. (2009). Chromosome AP010962 (DDBJ).
     StrainInfo("O111H_11128",    "Escherichia coli O111:H- str. 11128",
-               "EHEC", "stx2,LEE,eae-theta", 19750004),
+               "EHEC", "stx2,LEE,eae-theta", 19750004,
+               gca="GCA_000091005.1"),
 
     # Eppinger M et al. (2011) Sci Rep 1:92. Complete genome.
     StrainInfo("O145H28_RM12761","Escherichia coli O145:H28 str. RM12761",
@@ -145,18 +154,21 @@ PATHOGENIC: list[StrainInfo] = [
 
     # ── UPEC — pap/hly/siderophores confirmed ─────────────────────────────────
     # Welch RA et al. (2002) PNAS 99:17020. Pyelonephritis isolate.
+    # GCF_000007445.1 confirmed = NC_004431.1 (CFT073) via post-download header check
     StrainInfo("CFT073",         "Escherichia coli str. CFT073",
                "UPEC", "hlyA,papA,papC,fyuA,iutA,sfa", 12471157,
-               gcf="GCF_000013305.1"),
-
-    # Chen SL et al. (2006) PNAS 103:5977. Cystitis isolate.
-    StrainInfo("UTI89",          "Escherichia coli str. UTI89",
-               "UPEC", "hlyA,papA,iroN,fyuA,fimH", 16513999,
                gcf="GCF_000007445.1"),
 
+    # Chen SL et al. (2006) PNAS 103:5977. Cystitis isolate.
+    # Chromosome CP000243.1 → GCF resolved via Entrez search
+    StrainInfo("UTI89",          "Escherichia coli str. UTI89",
+               "UPEC", "hlyA,papA,iroN,fyuA,fimH", 16513999),
+
     # Brzuszkiewicz E et al. (2006) PNAS 103:12879. Five PAIs I-V.
+    # GCF_000013305.1 confirmed = NC_008253.1 (536) via post-download header check
     StrainInfo("536",            "Escherichia coli str. 536",
-               "UPEC", "PAI-I-V,hlyA,papA,sfaD,fyuA", 16973745),
+               "UPEC", "PAI-I-V,hlyA,papA,sfaD,fyuA", 16973745,
+               gcf="GCF_000013305.1"),
 
     # Touchon M et al. (2009) PLoS Genet 5:e1000344. ExPEC, bloodstream isolate.
     StrainInfo("UMN026",         "Escherichia coli str. UMN026",
@@ -362,36 +374,45 @@ assert len(NON_PATHOGENIC) >= 30, f"Need 30 non-pathogenic, have {len(NON_PATHOG
 
 # ── NCBI resolution ───────────────────────────────────────────────────────────
 
-def entrez_search_assembly(organism: str) -> Optional[str]:
+def entrez_search_assembly(organism: str) -> tuple[Optional[str], Optional[str]]:
     """
-    Search NCBI Assembly for a complete genome of the given organism.
-    Returns first GCF_ accession found, or None.
+    Search NCBI Assembly for a complete or chromosome-level genome.
+    Returns (gcf_accession, gca_accession) — either may be None.
+    Only returns accessions with matching organism name to prevent false matches.
     """
-    query = f'"{organism}"[All Fields] AND "Complete Genome"[Assembly Level]'
-    time.sleep(REQUEST_DELAY)
-    try:
-        handle  = Entrez.esearch(db="assembly", term=query, retmax=5)
-        record  = Entrez.read(handle)
-        ids     = record.get("IdList", [])
-        if not ids:
-            # Broader search without organism constraint
-            query2 = f'{organism} AND "Complete Genome"[Assembly Level] AND "Escherichia coli"[Organism]'
-            handle = Entrez.esearch(db="assembly", term=query2, retmax=5)
-            record = Entrez.read(handle)
-            ids    = record.get("IdList", [])
-        if not ids:
-            return None
+    queries = [
+        f'"{organism}"[Organism] AND ("Complete Genome"[Assembly Level] OR "Chromosome"[Assembly Level])',
+        f'"{organism}"[All Fields] AND "Escherichia coli"[Organism] AND ("Complete Genome"[Assembly Level] OR "Chromosome"[Assembly Level])',
+    ]
+    gcf_found = gca_found = None
+    for query in queries:
         time.sleep(REQUEST_DELAY)
-        handle  = Entrez.esummary(db="assembly", id=",".join(ids))
-        summary = Entrez.read(handle)
-        for doc in summary["DocumentSummarySet"]["DocumentSummary"]:
-            acc = doc.get("AssemblyAccession", "")
-            level = doc.get("AssemblyStatus", "")
-            if acc.startswith("GCF_") and "Complete" in level:
-                return acc
-    except Exception as exc:
-        log.warning("  Entrez search failed for %s: %s", organism, exc)
-    return None
+        try:
+            handle  = Entrez.esearch(db="assembly", term=query, retmax=10)
+            record  = Entrez.read(handle)
+            ids     = record.get("IdList", [])
+            if not ids:
+                continue
+            time.sleep(REQUEST_DELAY)
+            handle  = Entrez.esummary(db="assembly", id=",".join(ids))
+            summary = Entrez.read(handle)
+            for doc in summary["DocumentSummarySet"]["DocumentSummary"]:
+                acc    = doc.get("AssemblyAccession", "")
+                level  = doc.get("AssemblyStatus", "")
+                org    = doc.get("Organism", "")
+                # Only accept if organism field contains E. coli
+                if "coli" not in org.lower():
+                    continue
+                if any(kw in level for kw in ("Complete", "Chromosome")):
+                    if acc.startswith("GCF_") and gcf_found is None:
+                        gcf_found = acc
+                    elif acc.startswith("GCA_") and gca_found is None:
+                        gca_found = acc
+            if gcf_found or gca_found:
+                return gcf_found, gca_found
+        except Exception as exc:
+            log.warning("  Entrez query failed (%s): %s", query[:60], exc)
+    return None, None
 
 
 def verify_assembly_level(gcf: str) -> bool:
@@ -426,29 +447,35 @@ def download_genome(strain: StrainInfo) -> Optional[Path]:
         log.info("SKIP  %-25s  already downloaded", strain.label)
         return fasta
 
-    # Resolve GCF accession
+    # Resolve accession: prefer hardcoded GCF → GCA → Entrez search
     gcf = strain.gcf
-    if gcf is None:
+    gca = strain.gca
+
+    if gcf is None and gca is None:
         log.info("SRCH  %-25s  searching NCBI Assembly...", strain.label)
-        gcf = entrez_search_assembly(strain.organism)
-    if gcf is None:
+        gcf, gca = entrez_search_assembly(strain.organism)
+
+    accession = gcf or gca
+    if accession is None:
         log.warning("FAIL  %-25s  no complete genome found on NCBI", strain.label)
         return None
 
+    section = "refseq" if accession.startswith("GCF_") else "genbank"
     out_dir.mkdir(exist_ok=True)
     # Use full path so script works when called with explicit Python binary
     ngd_bin = Path(sys.executable).parent / "ncbi-genome-download"
     cmd = [
         str(ngd_bin),
-        "--assembly-accessions", gcf,
+        "--assembly-accessions", accession,
         "--formats", "fasta",
-        "--assembly-levels", "complete",
+        "--assembly-levels", "complete,chromosome",
+        "--section", section,
         "--output-folder", str(out_dir),
         "--flat-output",
         "--no-cache",
         "bacteria",
     ]
-    log.info("FETCH %-25s  %s", strain.label, gcf)
+    log.info("FETCH %-25s  %s (%s)", strain.label, accession, section)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
     if result.returncode != 0:
@@ -464,12 +491,25 @@ def download_genome(strain: StrainInfo) -> Optional[Path]:
     unzipped = gz_files[0].with_suffix("")
     unzipped.rename(fasta)
 
-    # Size validation
-    size_bp = sum(len(rec.seq) for rec in SeqIO.parse(str(fasta), "fasta"))
-    if not (GENOME_SIZE_MIN <= size_bp <= GENOME_SIZE_MAX):
-        log.warning("WARN  %-25s  genome size %d bp outside expected range", strain.label, size_bp)
+    # Validate: size range + FASTA header must reference E. coli
+    records = list(SeqIO.parse(str(fasta), "fasta"))
+    size_bp = sum(len(r.seq) for r in records)
 
-    log.info("OK    %-25s  %s  %d bp", strain.label, gcf, size_bp)
+    if not (GENOME_SIZE_MIN <= size_bp <= GENOME_SIZE_MAX):
+        log.warning("WARN  %-25s  genome size %d bp outside E. coli range", strain.label, size_bp)
+
+    first_desc = records[0].description.lower() if records else ""
+    if "escherichia" not in first_desc and "e. coli" not in first_desc:
+        log.error("REJECT %-24s  FASTA header suggests wrong organism: %s",
+                  strain.label, records[0].id if records else "?")
+        fasta.unlink()
+        try:
+            out_dir.rmdir()
+        except OSError:
+            pass
+        return None
+
+    log.info("OK    %-25s  %s  %d bp", strain.label, accession, size_bp)
     return fasta
 
 
