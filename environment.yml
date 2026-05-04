@@ -1,0 +1,28 @@
+name: fp_pipeline
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  # Alignment & comparative genomics
+  - mummer4>=4.0.0
+  - blast>=2.16.0
+  - bedtools>=2.31.0
+  - samtools>=1.20
+  # Genome downloads
+  - ncbi-genome-download>=0.3.3
+  # Python scientific stack
+  - biopython>=1.83
+  - pandas>=2.0
+  - numpy>=1.26
+  - scipy>=1.12
+  - matplotlib>=3.8
+  - seaborn>=0.13
+  - scikit-learn>=1.4
+  - xgboost>=2.0
+  - shap>=0.45
+  - insilicoseq
+  - pip
+  - pip:
+    - upsetplot
