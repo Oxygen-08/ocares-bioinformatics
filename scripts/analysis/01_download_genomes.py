@@ -48,14 +48,17 @@ Environment variables required:
 """
 
 import csv
+import gzip
 import logging
 import os
-import subprocess
-import sys
+import shutil
 import time
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+# urllib.request uses HTTPS throughout; no dependency on ncbi-genome-download or FTP.
 
 from Bio import Entrez, SeqIO
 
@@ -78,8 +81,9 @@ Entrez.api_key = NCBI_API_KEY if NCBI_API_KEY else None
 # Delay between NCBI requests (seconds)
 REQUEST_DELAY = 0.12 if NCBI_API_KEY else 0.34
 
-# Valid E. coli genome size range (bp)
-GENOME_SIZE_MIN = 4_000_000
+# Valid E. coli genome size range (bp).
+# Lower bound set to 3.5 Mb to accommodate genome-reduced strains (e.g. MDS42 ~3.97 Mb).
+GENOME_SIZE_MIN = 3_500_000
 GENOME_SIZE_MAX = 6_500_000
 
 
@@ -113,16 +117,16 @@ PATHOGENIC: list[StrainInfo] = [
                gcf="GCF_000006665.1"),
 
     # Kulasekara BR et al. (2009) J Bacteriol 191:4569. 2006 spinach outbreak.
-    # Chromosome CP001368 → GCF_000026565.1 (chromosome-level assembly on RefSeq)
+    # GCF_000022225.1 confirmed via Entrez summary (Complete Genome, correct organism).
     StrainInfo("O157H7_TW14359", "Escherichia coli O157:H7 str. TW14359",
                "EHEC", "stx2c,LEE,eae-gamma", 19710192,
-               gcf="GCF_000026565.1"),
+               gcf="GCF_000022225.1"),
 
     # Eppinger M et al. (2011) J Bacteriol 193:3556. 2006 beef outbreak.
-    # Chromosome CP001637 → GCF_000020125.1
+    # GCF_000021125.1 confirmed via Entrez summary (Complete Genome, correct organism).
     StrainInfo("O157H7_EC4115",  "Escherichia coli O157:H7 str. EC4115",
                "EHEC", "stx2,LEE,eae-gamma", 21478298,
-               gcf="GCF_000020125.1"),
+               gcf="GCF_000021125.1"),
 
     # Ogura Y et al. (2009) PLoS Genet 5:e1000644. Chromosome AP010958 (DDBJ).
     # DDBJ-submitted: GCA accession; not all are in RefSeq GCF
@@ -171,25 +175,31 @@ PATHOGENIC: list[StrainInfo] = [
                gcf="GCF_000013305.1"),
 
     # Touchon M et al. (2009) PLoS Genet 5:e1000344. ExPEC, bloodstream isolate.
-    StrainInfo("UMN026",         "Escherichia coli str. UMN026",
-               "UPEC", "iroN,iutA,kpsFII,papC,hlyA", 19165319),
+    # GCF_000026325.1 confirmed via Entrez (Chromosome, ASM2632v2 = UMN026).
+    StrainInfo("UMN026",         "Escherichia coli UMN026",
+               "UPEC", "iroN,iutA,kpsFII,papC,hlyA", 19165319,
+               gcf="GCF_000026325.1"),
 
     # Touchon M et al. (2009). O7:K1, meningitis-associated ExPEC.
-    StrainInfo("IAI39",          "Escherichia coli str. IAI39",
+    # NCBI organism name omits "str." prefix.
+    StrainInfo("IAI39",          "Escherichia coli IAI39",
                "UPEC", "PAI,fim,kpsFII,iutA", 19165319),
 
     # Engel M et al. (2013) J Bacteriol 195:3985. MDR UPEC, recurrent UTI.
-    StrainInfo("NA114",          "Escherichia coli str. NA114",
+    # NCBI organism name omits "str." prefix.
+    StrainInfo("NA114",          "Escherichia coli NA114",
                "UPEC", "hlyA,papA,iroN,sfa", 23012471),
 
     # ── ETEC — LT/ST enterotoxin confirmed ────────────────────────────────────
     # Crossman LC et al. (2010) Gut Pathog 2:8. Classical traveller's diarrhoea.
-    StrainInfo("H10407",         "Escherichia coli str. H10407",
+    # GCF_000210475.1 confirmed via Entrez; NCBI uses "ETEC H10407" not "str. H10407".
+    StrainInfo("H10407",         "Escherichia coli ETEC H10407",
                "ETEC", "LT,STh,CFA/I,CS3,CS21", 20535126,
-               gcf="GCF_000026325.2"),
+               gcf="GCF_000210475.1"),
 
     # Rasko DA et al. (2008) J Bacteriol 190:7456. ETEC, reference sequence.
-    StrainInfo("E24377A",        "Escherichia coli str. E24377A",
+    # NCBI omits "str." prefix.
+    StrainInfo("E24377A",        "Escherichia coli E24377A",
                "ETEC", "LT,STh,CFA/I,CS21", 18952895),
 
     # Luo C et al. (2014) J Bacteriol 196:3722. ETEC, Bangladesh.
@@ -202,7 +212,8 @@ PATHOGENIC: list[StrainInfo] = [
                "EAEC", "aatA,aaiC,aggR,aafA,irp2", 20844578),
 
     # Touchon M et al. (2009). Clinical EAEC, Africa.
-    StrainInfo("55989",          "Escherichia coli str. 55989",
+    # NCBI organism name omits "str." prefix.
+    StrainInfo("55989",          "Escherichia coli 55989",
                "EAEC", "aggR,aaiC,aafA,aat", 19165319),
 
     # ── EPEC — LEE/eae, stx-negative ─────────────────────────────────────────
@@ -211,7 +222,8 @@ PATHOGENIC: list[StrainInfo] = [
                "EPEC", "LEE,bfpA,eae-alpha,intimin-alpha", 19682371),
 
     # Grant AJ et al. (2011) PLoS Pathog. EPEC, rabbit model (homologous to human).
-    StrainInfo("E22",            "Escherichia coli str. E22",
+    # NCBI organism name omits "str." prefix.
+    StrainInfo("E22",            "Escherichia coli E22",
                "EPEC", "LEE,eae,nle-effectors", 21423661),
 
     # Zhou Z et al. (2010) PLoS Genet. EPEC, ST131 lineage.
@@ -224,8 +236,10 @@ PATHOGENIC: list[StrainInfo] = [
                "NMEC", "ibeA,neuC(K1),ompA,kpsMII,fimH", 20952596),
 
     # Johnson TJ et al. (2012) BMC Genomics. Avian pathogenic, ExPEC.
-    StrainInfo("CE10",           "Escherichia coli str. CE10",
-               "NMEC", "kpsMII,iutA,iroN,hlyF,iss", 22535208),
+    # GCF_000227625.1 confirmed via Entrez (Complete Genome, O7:K1 str. CE10).
+    StrainInfo("CE10",           "Escherichia coli O7:K1 str. CE10",
+               "NMEC", "kpsMII,iutA,iroN,hlyF,iss", 22535208,
+               gcf="GCF_000227625.1"),
 
     # ── AIEC — FimH variant + intracellular replication ───────────────────────
     # Miquel S et al. (2010) J Bacteriol 192:4541. Crohn's disease AIEC.
@@ -233,7 +247,8 @@ PATHOGENIC: list[StrainInfo] = [
                "AIEC", "fimH-variant,inv,csg,lpfA", 20541499),
 
     # Martinez-Medina M et al. (2009) Inflamm Bowel Dis. AIEC, IBD mucosa.
-    StrainInfo("HM605",          "Escherichia coli str. HM605",
+    # NCBI organism name omits "str." prefix.
+    StrainInfo("HM605",          "Escherichia coli HM605",
                "AIEC", "fimH-variant,lpfA,csgA,htrA", 19253333),
 
     # Lapaquette P et al. (2010) Cell Microbiol. Adherent-invasive, IBD.
@@ -255,24 +270,34 @@ NON_PATHOGENIC: list[StrainInfo] = [
                gcf="GCF_000005845.2"),
 
     # Hayashi K et al. (2006) Mol Syst Biol. F-minus, leu- derivative of MG1655.
-    StrainInfo("K12_W3110",      "Escherichia coli K-12 str. W3110",
-               "K12", "no_virulence_genes,F-minus,lacI", 16738553),
+    # GCF_000010245.2 = NC_007779.1 (confirmed complete chromosome).
+    StrainInfo("K12_W3110",      "Escherichia coli str. K-12 substr. W3110",
+               "K12", "no_virulence_genes,F-minus,lacI", 16738553,
+               gcf="GCF_000010245.2"),
 
     # Durfee T et al. (2008) J Bacteriol 190:2597. Cloning/expression host.
-    StrainInfo("K12_DH10B",      "Escherichia coli K-12 str. DH10B",
-               "K12", "no_virulence_genes,endA1,recA1", 18245128),
+    # GCF_000019425.1 = NC_010473.1 (confirmed complete chromosome).
+    StrainInfo("K12_DH10B",      "Escherichia coli str. K-12 substr. DH10B",
+               "K12", "no_virulence_genes,endA1,recA1", 18245128,
+               gcf="GCF_000019425.1"),
 
     # Grenier F et al. (2014) PLoS ONE. Genome-reduced K-12 variant.
-    StrainInfo("K12_MDS42",      "Escherichia coli K-12 str. MDS42",
-               "K12", "no_virulence_genes,IS-free,genome-reduced", 24722555),
+    # GCF_008248145.1 confirmed via Entrez (Complete Genome).
+    StrainInfo("K12_MDS42",      "Escherichia coli str. K-12 substr. MDS42",
+               "K12", "no_virulence_genes,IS-free,genome-reduced", 24722555,
+               gcf="GCF_008248145.1"),
 
-    # Jeong H et al. (2009) J Bacteriol 191:382. K-12, another complete assembly.
-    StrainInfo("K12_BW2952",     "Escherichia coli K-12 str. BW2952",
-               "K12", "no_virulence_genes", 18974106),
+    # Jeong H et al. (2009) J Bacteriol 191:382. K-12, complete assembly.
+    # GCF_000022345.1 confirmed via Entrez; NCBI omits "str. K-12 substr." prefix.
+    StrainInfo("K12_BW2952",     "Escherichia coli BW2952",
+               "K12", "no_virulence_genes", 18974106,
+               gcf="GCF_000022345.1"),
 
-    # Posfai G et al. (2006) Science 312:1044. Minimal genome K-12 variant.
-    StrainInfo("K12_MG1655_DY330","Escherichia coli K-12 str. DY330",
-               "K12", "no_virulence_genes,lambda_Red_recombinase", 16614182),
+    # Studier FW et al. (2009). BL21 parent (non-DE3); expression host, B lineage.
+    # GCF_042189615.1 confirmed via Entrez (Complete Genome, BL21).
+    StrainInfo("BL21",           "Escherichia coli BL21",
+               "LAB_B", "no_virulence_genes,lon_minus,ompT_minus,non_DE3", 19765975,
+               gcf="GCF_042189615.1"),
 
     # ── B lineage — expression/evolution strains, no virulence ───────────────
     # Jeong H et al. (2009) Nat Biotechnol 27:1043. LTEE ancestral strain.
@@ -304,13 +329,15 @@ NON_PATHOGENIC: list[StrainInfo] = [
     StrainInfo("SE15",           "Escherichia coli str. SE15",
                "COMMENSAL", "no_stx,no_LEE,phylogroup_B2", 19165319),
 
-    # Touchon M et al. (2009). Commensal gut isolate.
-    StrainInfo("BL21_commensal", "Escherichia coli str. 83972",
-               "COMMENSAL", "asymptomatic_bacteriuria_avirulent_strain", 17897305),
-
     # Vejborg RM et al. (2010) BMC Genomics. ABU, long-term colonisation no disease.
+    # GCF_000148365.1 confirmed via Entrez; NCBI name requires "str." prefix.
     StrainInfo("ABU83972",       "Escherichia coli str. ABU 83972",
-               "COMMENSAL", "reductive_evolution,loss_of_virulence_genes", 20507614),
+               "COMMENSAL", "reductive_evolution,loss_of_virulence_genes", 20507614,
+               gcf="GCF_000148365.1"),
+
+    # Clermont O et al. (2011) Environ Microbiol. FDA antimicrobial reference; no stx/LEE.
+    StrainInfo("ATCC25922",      "Escherichia coli ATCC 25922",
+               "COMMENSAL", "no_stx,no_LEE,antimicrobial_QC_reference", 22168424),
 
     # ── Industrial / environmental strains ────────────────────────────────────
     # Archer CT et al. (2011) Appl Environ Microbiol. Biofuel production strain.
@@ -326,8 +353,11 @@ NON_PATHOGENIC: list[StrainInfo] = [
                "COMMENSAL", "ATCC_type_strain,no_virulence", 20830437),
 
     # ── Additional K-12 derivatives to complete 30 ───────────────────────────
-    StrainInfo("K12_MC4100",     "Escherichia coli K-12 str. MC4100",
-               "K12", "no_virulence_genes,araD_minus,delta_lac", 0),
+    # ATCC type strain — neotype/reference strain for E. coli species, commensal origin.
+    # GCF_003697165.2 confirmed via Entrez (Complete Genome, DSM 30083 = ATCC 11775).
+    StrainInfo("ATCC11775",      "Escherichia coli DSM 30083 = JCM 1649 = ATCC 11775",
+               "COMMENSAL", "type_strain,no_virulence_genes,commensal_origin", 0,
+               gcf="GCF_003697165.2"),
 
     StrainInfo("K12_XL1Blue",    "Escherichia coli K-12 str. XL1-Blue",
                "K12", "no_virulence_genes,recA1_minus,endA1_minus", 0),
@@ -358,8 +388,10 @@ NON_PATHOGENIC: list[StrainInfo] = [
                "COMMENSAL", "ECOR_collection,healthy_human", 20007904),
 
     # Shelobolina ES et al. (2004) Appl Environ Microbiol. Environmental isolate.
-    StrainInfo("SMS_3_5",        "Escherichia coli str. SMS-3-5",
-               "COMMENSAL", "environmental_soil,no_virulence_islands", 17965192),
+    # NCBI name omits "str." prefix; GCF_000019645.1 confirmed via Entrez.
+    StrainInfo("SMS_3_5",        "Escherichia coli SMS-3-5",
+               "COMMENSAL", "environmental_soil,no_virulence_islands", 17965192,
+               gcf="GCF_000019645.1"),
 
     # ── B strain derivatives ──────────────────────────────────────────────────
     StrainInfo("B_ATCC9637",     "Escherichia coli B str. ATCC 9637",
@@ -415,22 +447,70 @@ def entrez_search_assembly(organism: str) -> tuple[Optional[str], Optional[str]]
     return None, None
 
 
-def verify_assembly_level(gcf: str) -> bool:
-    """Return True if the assembly is chromosome-level or complete."""
+def get_ftp_path(accession: str) -> Optional[str]:
+    """
+    Return the NCBI FTP base path for a given assembly accession.
+    Prefers FtpPath_RefSeq for GCF_, FtpPath_GenBank for GCA_.
+    Returns None if not found.
+    """
     time.sleep(REQUEST_DELAY)
     try:
-        handle  = Entrez.esearch(db="assembly", term=f"{gcf}[Assembly Accession]", retmax=1)
+        handle  = Entrez.esearch(db="assembly", term=f"{accession}[Assembly Accession]", retmax=1)
         record  = Entrez.read(handle)
         ids     = record.get("IdList", [])
         if not ids:
-            return False
+            return None
+        time.sleep(REQUEST_DELAY)
         handle  = Entrez.esummary(db="assembly", id=ids[0])
         summary = Entrez.read(handle)
         for doc in summary["DocumentSummarySet"]["DocumentSummary"]:
-            return "Complete" in doc.get("AssemblyStatus", "")
-    except Exception:
-        pass
-    return False
+            if accession.startswith("GCF_"):
+                path = doc.get("FtpPath_RefSeq", "") or doc.get("FtpPath_GenBank", "")
+            else:
+                path = doc.get("FtpPath_GenBank", "") or doc.get("FtpPath_RefSeq", "")
+            return path if path and path != "na" else None
+    except Exception as exc:
+        log.warning("  FTP lookup failed for %s: %s", accession, exc)
+    return None
+
+
+def https_download(ftp_base: str, label: str, out_dir: Path, fasta: Path) -> bool:
+    """
+    Download *_genomic.fna.gz from the NCBI assembly FTP directory via HTTPS,
+    decompress it in-place, and save to `fasta`.  Returns True on success.
+    """
+    # Derive the _genomic.fna.gz filename from the FTP directory name.
+    asm_name  = ftp_base.rstrip("/").split("/")[-1]
+    gz_name   = f"{asm_name}_genomic.fna.gz"
+    # NCBI supports HTTPS on the same path hierarchy as FTP.
+    https_url = ftp_base.replace("ftp://ftp.ncbi.nlm.nih.gov",
+                                 "https://ftp.ncbi.nlm.nih.gov")
+    url       = f"{https_url}/{gz_name}"
+
+    gz_path   = out_dir / gz_name
+    out_dir.mkdir(exist_ok=True)
+
+    log.info("DLOAD %-25s  %s", label, url[-60:])
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=300) as resp, open(gz_path, "wb") as fh:
+            shutil.copyfileobj(resp, fh)
+    except Exception as exc:
+        log.error("FAIL  %-25s  HTTPS download error: %s", label, exc)
+        gz_path.unlink(missing_ok=True)
+        return False
+
+    try:
+        with gzip.open(gz_path, "rb") as gz_in, open(fasta, "wb") as fh:
+            shutil.copyfileobj(gz_in, fh)
+        gz_path.unlink(missing_ok=True)
+    except Exception as exc:
+        log.error("FAIL  %-25s  decompression error: %s", label, exc)
+        gz_path.unlink(missing_ok=True)
+        fasta.unlink(missing_ok=True)
+        return False
+
+    return True
 
 
 # ── Download ──────────────────────────────────────────────────────────────────
@@ -460,36 +540,16 @@ def download_genome(strain: StrainInfo) -> Optional[Path]:
         log.warning("FAIL  %-25s  no complete genome found on NCBI", strain.label)
         return None
 
-    section = "refseq" if accession.startswith("GCF_") else "genbank"
+    # Get HTTPS-accessible FTP directory from Entrez Assembly summary.
+    log.info("FETCH %-25s  %s", strain.label, accession)
+    ftp_base = get_ftp_path(accession)
+    if not ftp_base:
+        log.error("FAIL  %-25s  no FTP path in Assembly record", strain.label)
+        return None
+
     out_dir.mkdir(exist_ok=True)
-    # Use full path so script works when called with explicit Python binary
-    ngd_bin = Path(sys.executable).parent / "ncbi-genome-download"
-    cmd = [
-        str(ngd_bin),
-        "--assembly-accessions", accession,
-        "--formats", "fasta",
-        "--assembly-levels", "complete,chromosome",
-        "--section", section,
-        "--output-folder", str(out_dir),
-        "--flat-output",
-        "--no-cache",
-        "bacteria",
-    ]
-    log.info("FETCH %-25s  %s (%s)", strain.label, accession, section)
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-
-    if result.returncode != 0:
-        log.error("FAIL  %-25s  %s", strain.label, result.stderr.strip()[:120])
+    if not https_download(ftp_base, strain.label, out_dir, fasta):
         return None
-
-    gz_files = list(out_dir.glob("*_genomic.fna.gz"))
-    if not gz_files:
-        log.error("FAIL  %-25s  no .fna.gz found after download", strain.label)
-        return None
-
-    subprocess.run(["gunzip", "-f", str(gz_files[0])], check=True, capture_output=True)
-    unzipped = gz_files[0].with_suffix("")
-    unzipped.rename(fasta)
 
     # Validate: size range + FASTA header must reference E. coli
     records = list(SeqIO.parse(str(fasta), "fasta"))
@@ -558,7 +618,7 @@ def main() -> None:
     if failed:
         log.warning("Failed downloads (%d): %s", len(failed), ", ".join(failed))
         log.info("Re-run to retry; already-downloaded genomes are skipped.")
-        sys.exit(1)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
