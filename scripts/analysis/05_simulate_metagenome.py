@@ -21,11 +21,14 @@ Outputs:
 """
 
 import subprocess
+import sys
 import csv
 import logging
 import random
 import re
 from pathlib import Path
+
+BIN_DIR = Path(sys.executable).parent
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,24 +57,24 @@ COMMUNITIES = {
         "SE11":          0.30,
         "K12_MG1655":    0.30,
         "Nissle1917":    0.20,
-        "HVM2062":       0.10,
-        "HVM1157":       0.09,
+        "HS":            0.10,
+        "IAI1":          0.09,
     },
     "mid": {
         "O157H7_Sakai":  0.05,
         "SE11":          0.28,
         "K12_MG1655":    0.28,
         "Nissle1917":    0.19,
-        "HVM2062":       0.10,
-        "HVM1157":       0.10,
+        "HS":            0.10,
+        "IAI1":          0.10,
     },
     "high": {
         "O157H7_Sakai":  0.10,
         "SE11":          0.25,
         "K12_MG1655":    0.25,
         "Nissle1917":    0.20,
-        "HVM2062":       0.10,
-        "HVM1157":       0.10,
+        "HS":            0.10,
+        "IAI1":          0.10,
     },
 }
 
@@ -86,13 +89,26 @@ def genome_path(label: str) -> Path:
 
 
 def write_abundance_file(community: dict[str, float], out_file: Path) -> None:
-    """Write InSilicoSeq abundance file: one line per genome — genome_path\tabundance."""
+    """
+    Write ISS abundance file keyed by FASTA contig ID.
+    ISS matches each record ID from the stitched genome FASTA against this file.
+    Each genome's target abundance is distributed across its contigs by length.
+    """
+    from Bio import SeqIO
+    rows = {}
+    for label, target_abund in community.items():
+        fasta = genome_path(label)
+        records = list(SeqIO.parse(str(fasta), "fasta"))
+        total_len = sum(len(r) for r in records)
+        for rec in records:
+            rows[rec.id] = target_abund * (len(rec) / total_len)
     with open(out_file, "w") as fh:
-        for label, abund in community.items():
-            fh.write(f"{genome_path(label)}\t{abund}\n")
+        for contig_id, abund in rows.items():
+            fh.write(f"{contig_id}\t{abund:.8f}\n")
 
 
 def run_insilicoseq(
+    community: dict[str, float],
     abundance_file: Path,
     out_prefix: Path,
     n_reads: int,
@@ -107,10 +123,13 @@ def run_insilicoseq(
         return r1, r2
 
     log.info("Simulating %d reads → %s", n_reads, out_prefix.parent.name)
+    # --genomes takes individual FASTA paths; --abundance_file takes stem\tabundance TSV
+    genome_paths = [str(genome_path(label)) for label in community]
     subprocess.run(
         [
-            "iss", "generate",
-            "--genomes", str(abundance_file),
+            str(BIN_DIR / "iss"), "generate",
+            "--genomes", *genome_paths,
+            "--abundance_file", str(abundance_file),
             "--model", "HiSeq",
             "--output", str(out_prefix),
             "--n_reads", str(n_reads),
@@ -198,7 +217,7 @@ def main() -> None:
         prefix  = out_dir / condition
 
         try:
-            r1, r2 = run_insilicoseq(abund_file, prefix, n_reads, seed=42)
+            r1, r2 = run_insilicoseq(community, abund_file, prefix, n_reads, seed=42)
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             log.error("InSilicoSeq failed for %s: %s", condition, exc)
             continue
