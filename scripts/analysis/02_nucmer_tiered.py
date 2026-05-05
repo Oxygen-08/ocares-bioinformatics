@@ -30,6 +30,8 @@ from pathlib import Path
 from dataclasses import dataclass, asdict
 import csv
 
+BIN_DIR = Path(sys.executable).parent
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)s  %(message)s",
@@ -81,7 +83,7 @@ def run_nucmer(ref: Path, query: Path, out_prefix: Path) -> Path:
         return delta
 
     cmd = [
-        "nucmer",
+        str(BIN_DIR / "nucmer"),
         "--maxgap=500",
         "--mincluster=65",
         "--prefix", str(out_prefix),
@@ -100,7 +102,7 @@ def filter_delta(delta: Path) -> Path:
         return filtered
     with open(filtered, "w") as fh:
         subprocess.run(
-            ["delta-filter", "-1", str(delta)],
+            [str(BIN_DIR / "delta-filter"), "-1", str(delta)],
             stdout=fh, check=True, capture_output=False,
         )
     return filtered
@@ -146,7 +148,7 @@ def show_coords(filtered_delta: Path) -> Path:
         return coords
     with open(coords, "w") as fh:
         subprocess.run(
-            ["show-coords", "-T", "-r", "-l", str(filtered_delta)],
+            [str(BIN_DIR / "show-coords"), "-T", "-r", "-l", str(filtered_delta)],
             stdout=fh, check=True, capture_output=False,
         )
     return coords
