@@ -141,27 +141,33 @@ def assign_read_labels(
     ground_truth: dict[str, int],
 ) -> tuple[list[int], list[int], list[float]]:
     """
-    For each read (sseqid) hit by a marker of the given tier, decide
-    pathogen (1) or non-pathogen (0) based on identity + tier thresholds.
+    Evaluate classification over ALL labelled reads in ground_truth.
+    Reads with a qualifying BLAST hit (pident >= cutoff, length >= MIN_ALIGN_LEN)
+    are called pathogen (pred=1); all other labelled reads are called
+    non-pathogen (pred=0), producing correct TN and FN counts.
 
     Returns parallel lists: y_true, y_pred, y_score (for ROC curves).
     """
     cutoff = IDENTITY_CUTOFFS[tier]
-    # Aggregate per read: take max identity hit for that read
-    if hits.empty:
-        return [], [], []
 
-    filtered = hits[(hits["pident"] >= cutoff) & (hits["length"] >= MIN_ALIGN_LEN)]
-    per_read  = filtered.groupby("sseqid")["pident"].max().reset_index()
-    per_read.columns = ["read_id", "max_pident"]
+    # Build read_id → max qualifying hit identity; only reads WITH a qualifying hit are here
+    hit_scores: dict[str, float] = {}
+    if not hits.empty:
+        filtered = hits[(hits["pident"] >= cutoff) & (hits["length"] >= MIN_ALIGN_LEN)]
+        if not filtered.empty:
+            best = filtered.groupby("sseqid")["pident"].max()
+            hit_scores = best.to_dict()
 
+    # Evaluate every labelled read; reads absent from hit_scores are called negative
     y_true, y_pred, y_score = [], [], []
-    for _, row in per_read.iterrows():
-        read_id = row["read_id"]
-        score   = row["max_pident"] / 100.0
-        pred    = 1 if row["max_pident"] >= cutoff else 0
-        true    = ground_truth.get(read_id, 0)
-        y_true.append(true)
+    for read_id, true_label in ground_truth.items():
+        if read_id in hit_scores:
+            pred  = 1
+            score = hit_scores[read_id] / 100.0
+        else:
+            pred  = 0
+            score = 0.0
+        y_true.append(true_label)
         y_pred.append(pred)
         y_score.append(score)
 
