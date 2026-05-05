@@ -120,12 +120,14 @@ def parse_coords(coords_file: Path, label: str, pathotype: str) -> list[AlignBlo
             if len(parts) < 9:
                 continue
             try:
+                # show-coords -T -r -l columns:
+                # 0:S1 1:E1 2:S2 3:E2 4:LEN1 5:LEN2 6:%IDY 7:LENR 8:LENQ 9:TAG1 10:TAG2
                 r1, r2, q1, q2, rlen, qlen, ident, ref_ctg, qry_ctg = (
                     int(parts[0]), int(parts[1]),
                     int(parts[2]), int(parts[3]),
                     int(parts[4]), int(parts[5]),
                     float(parts[6]),
-                    parts[7], parts[8],
+                    parts[9], parts[10],
                 )
             except (ValueError, IndexError):
                 continue
