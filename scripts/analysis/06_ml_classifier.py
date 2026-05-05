@@ -200,7 +200,7 @@ def build_feature_matrix(
             "align_coverage":  coverage,
             "tier_encoded":    TIER_ENCODING[tier],
             "pangenome_score": pangenome_score,
-            "label":           1 if tier != "CONSERVED" else 0,
+            "label":           1 if tier == "DIVERGED" else 0,
         })
 
     return pd.DataFrame(rows)
@@ -210,7 +210,7 @@ def build_feature_matrix(
 
 FEATURE_COLS = [
     "blastn_identity", "cai_score", "gc_delta",
-    "srna_density", "align_coverage", "tier_encoded", "pangenome_score",
+    "srna_density", "align_coverage",
 ]
 
 
