@@ -23,11 +23,14 @@ alignment tier information into the classification decision.
 """
 
 import subprocess
+import sys
 import csv
 import json
 import logging
 from pathlib import Path
 from collections import defaultdict
+
+BIN_DIR = Path(sys.executable).parent
 
 import numpy as np
 import pandas as pd
@@ -65,23 +68,32 @@ IDENTITY_CUTOFFS = {
     "CONSERVED": 95.0,
     "MODERATE":  85.0,
     "DIVERGED":   0.0,
+    "COMBINED":  85.0,  # combined set screened at moderate threshold
 }
 MIN_ALIGN_LEN = 100  # bp
 EVALUE_CUTOFF = 1e-10
 
 
-def build_blast_db(reads_fasta: Path) -> Path:
-    """Build nucleotide BLASTn database from metagenome reads."""
-    db_prefix = BLAST_DIR / "metagenome_db"
+def build_blast_db(reads_fastas: list[Path]) -> Path:
+    """Build nucleotide BLASTn database from all community metagenome FASTAs."""
+    db_prefix  = BLAST_DIR / "metagenome_db"
+    combined   = BLAST_DIR / "metagenome_combined.fasta"
     if (db_prefix.parent / (db_prefix.name + ".nhr")).exists():
         log.info("SKIP  BLASTn DB already built: %s", db_prefix)
         return db_prefix
 
-    log.info("Building BLASTn database from %s", reads_fasta.name)
+    if not combined.exists():
+        log.info("Combining %d community FASTAs into one DB input", len(reads_fastas))
+        with open(combined, "wb") as out:
+            for fasta in reads_fastas:
+                with open(fasta, "rb") as f:
+                    out.write(f.read())
+
+    log.info("Building BLASTn database from combined metagenome")
     subprocess.run(
         [
-            "makeblastdb",
-            "-in", str(reads_fasta),
+            str(BIN_DIR / "makeblastdb"),
+            "-in", str(combined),
             "-dbtype", "nucl",
             "-out", str(db_prefix),
             "-title", "simulated_metagenome",
@@ -100,7 +112,7 @@ def run_blastn(query_fasta: Path, db_prefix: Path, out_file: Path, threads: int 
     log.info("BLASTn: %s vs metagenome DB", query_fasta.name)
     subprocess.run(
         [
-            "blastn",
+            str(BIN_DIR / "blastn"),
             "-query", str(query_fasta),
             "-db", str(db_prefix),
             "-out", str(out_file),
@@ -156,24 +168,55 @@ def assign_read_labels(
     return y_true, y_pred, y_score
 
 
-def load_ground_truth(abundance_file: Path) -> dict[str, int]:
+def build_contig_genome_map(genome_dir: Path, pathogen_labels: set[str]) -> dict[str, int]:
     """
-    Load InSilicoSeq abundance/read mapping file.
-    Returns {read_id: 1_if_O157H7_else_0}.
-
-    Expected format: TSV with columns read_id, genome, abundance
-    (InSilicoSeq default output from --output flag with --cpus).
+    Map FASTA contig IDs → is_pathogen by reading each genome's FASTA headers.
+    ISS encodes the contig ID as the prefix of every read header.
     """
-    if not abundance_file.exists():
-        log.warning("Ground truth file not found: %s", abundance_file)
-        return {}
+    import re
+    contig_map: dict[str, int] = {}
+    manifest = genome_dir / "genome_manifest.tsv"
+    if not manifest.exists():
+        return contig_map
+    with open(manifest) as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            if row["fasta_path"] == "FAILED":
+                continue
+            label = row["label"]
+            is_path = 1 if label in pathogen_labels else 0
+            fasta = Path(row["fasta_path"])
+            if not fasta.exists():
+                continue
+            with open(fasta) as fa:
+                for line in fa:
+                    if line.startswith(">"):
+                        contig_id = line[1:].split()[0]
+                        contig_map[contig_id] = is_path
+    log.info("Contig→genome map: %d contigs (%d pathogen)",
+             len(contig_map), sum(contig_map.values()))
+    return contig_map
 
-    truth = {}
-    with open(abundance_file) as fh:
+
+def load_ground_truth(read_labels_tsv: Path, contig_map: dict[str, int]) -> dict[str, int]:
+    """
+    Build read_id → is_pathogen using contig_map.
+    ISS read headers: {contig_id}_{fragment_start}_{read_n}/{pair}
+    Strip trailing _{int}_{int}/{int} to recover the contig ID.
+    """
+    import re
+    _strip = re.compile(r'_\d+_\d+/\d+$')
+    truth: dict[str, int] = {}
+    if not read_labels_tsv.exists():
+        log.warning("read_labels.tsv not found: %s", read_labels_tsv)
+        return truth
+    with open(read_labels_tsv) as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         for row in reader:
-            is_pathogen = 1 if "O157" in row.get("genome", "") else 0
-            truth[row["read_id"]] = is_pathogen
+            read_id  = row["read_id"]
+            contig   = _strip.sub("", read_id)
+            truth[read_id] = contig_map.get(contig, 0)
+    log.info("Ground truth: %d labelled reads (%d pathogen)",
+             len(truth), sum(truth.values()))
     return truth
 
 
@@ -235,13 +278,14 @@ def main() -> None:
         )
         return
 
-    reads_fasta = reads_files[0]
-    db_prefix   = build_blast_db(reads_fasta)
+    db_prefix = build_blast_db(reads_files)
 
-    # Ground truth
-    gt_file   = METAGENOME / "read_labels.tsv"
-    gt        = load_ground_truth(gt_file)
-    log.info("Ground truth: %d labelled reads", len(gt))
+    # Ground truth — map contig IDs → genome labels → is_pathogen
+    PATHOGEN_LABELS = {"O157H7_Sakai"}
+    genome_dir  = REPO_ROOT / "data" / "genomes"
+    contig_map  = build_contig_genome_map(genome_dir, PATHOGEN_LABELS)
+    gt_file     = METAGENOME / "read_labels.tsv"
+    gt          = load_ground_truth(gt_file, contig_map)
 
     tiers = {
         "MODERATE":  MARKERS_DIR / "tier_II_markers.fna",
