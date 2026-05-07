@@ -22,6 +22,8 @@
 
 set -euo pipefail
 
+export PATH="/opt/anaconda3/envs/anvio8/bin:${PATH}"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GENOME_DIR="${REPO_ROOT}/data/genomes"
 PANGENOME_DIR="${REPO_ROOT}/data/results/pangenome"
@@ -45,6 +47,10 @@ for genome_dir in "${GENOME_DIR}"/*/; do
     fna="${genome_dir}${label}.fna"
     [[ ! -f "${fna}" ]] && continue
 
+    # Anvi'o requires names/prefixes to start with a letter
+    safe_label="${label}"
+    [[ "${safe_label}" =~ ^[0-9] ]] && safe_label="G_${safe_label}"
+
     out="${REFORMATTED_DIR}/${label}.fna"
     if [[ ! -f "${out}" ]]; then
         anvi-script-reformat-fasta \
@@ -52,11 +58,11 @@ for genome_dir in "${GENOME_DIR}"/*/; do
             -o "${out}" \
             --min-len 1000 \
             --simplify-names \
-            --prefix "${label}" \
+            --prefix "${safe_label}" \
             --seq-type NT \
             2>/dev/null
     fi
-    echo -e "${label}\t${out}" >> "${GENOME_LIST}"
+    echo -e "${safe_label}\t${out}" >> "${GENOME_LIST}"
 done
 
 COUNT=$(wc -l < "${GENOME_LIST}")
@@ -67,18 +73,21 @@ log "Creating Anvi'o contigs databases"
 DB_DIR="${PANGENOME_DIR}/contigs_dbs"
 mkdir -p "${DB_DIR}"
 
-while IFS=$'\t' read -r label fasta; do
-    db="${DB_DIR}/${label}.db"
+while IFS=$'\t' read -r safe_label fasta; do
+    # DB file is keyed by original label (strip G_ prefix if added)
+    orig_label="${safe_label#G_}"
+    db="${DB_DIR}/${orig_label}.db"
     if [[ ! -f "${db}" ]]; then
-        log "  contig DB: ${label}"
+        log "  contig DB: ${safe_label}"
         anvi-gen-contigs-database \
             -f "${fasta}" \
             -o "${db}" \
-            -n "${label}" \
+            -n "${safe_label}" \
             --num-threads "${NUM_THREADS}" \
             2>/dev/null
         anvi-run-hmms \
             -c "${db}" \
+            -I Bacteria_71 \
             --num-threads "${NUM_THREADS}" \
             --quiet \
             2>/dev/null
@@ -88,9 +97,10 @@ done < "${GENOME_LIST}"
 # ── 3. External genomes file ──────────────────────────────────────────────────
 EXTERNAL_GENOMES="${PANGENOME_DIR}/external_genomes.txt"
 echo -e "name\tcontigs_db_path" > "${EXTERNAL_GENOMES}"
-while IFS=$'\t' read -r label _; do
-    db="${DB_DIR}/${label}.db"
-    [[ -f "${db}" ]] && echo -e "${label}\t${db}" >> "${EXTERNAL_GENOMES}"
+while IFS=$'\t' read -r safe_label _; do
+    orig_label="${safe_label#G_}"
+    db="${DB_DIR}/${orig_label}.db"
+    [[ -f "${db}" ]] && echo -e "${safe_label}\t${db}" >> "${EXTERNAL_GENOMES}"
 done < "${GENOME_LIST}"
 
 # ── 4. Genomes storage ────────────────────────────────────────────────────────
@@ -136,10 +146,12 @@ GROUPS="${PANGENOME_DIR}/layer_groups.txt"
 echo -e "name\tgroup" > "${GROUPS}"
 while IFS=$'\t' read -r label _ pathotype _; do
     [[ "${label}" == "label" ]] && continue  # skip header
+    safe_label="${label}"
+    [[ "${safe_label}" =~ ^[0-9] ]] && safe_label="G_${safe_label}"
     if [[ "${pathotype}" =~ ^(EHEC|EPEC|UPEC|ETEC)$ ]]; then
-        echo -e "${label}\tPATHOGEN"
+        echo -e "${safe_label}\tPATHOGEN"
     else
-        echo -e "${label}\tCOMMENSAL"
+        echo -e "${safe_label}\tCOMMENSAL"
     fi
 done < "${REPO_ROOT}/data/genomes/genome_manifest.tsv" >> "${GROUPS}"
 

@@ -32,6 +32,7 @@ import json
 import logging
 import warnings
 from pathlib import Path
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -110,6 +111,44 @@ def compute_srna_density_proxy(seq: str) -> float:
     return au_rich / len(windows)
 
 
+def build_kmer_profile(seq: str, k: int = 4) -> np.ndarray:
+    """Return normalised k-mer frequency vector (length 4^k) for a sequence."""
+    bases = "ACGT"
+    kmers = ["".join(p) for p in product(bases, repeat=k)]
+    index = {km: i for i, km in enumerate(kmers)}
+    counts = np.zeros(len(kmers), dtype=float)
+    seq = seq.upper()
+    for i in range(len(seq) - k + 1):
+        km = seq[i:i + k]
+        if km in index:
+            counts[index[km]] += 1
+    total = counts.sum()
+    return counts / total if total > 0 else counts
+
+
+# Genome-level 4-mer profile cached at module level (populated on first call)
+_GENOME_KMER_CACHE: dict[str, np.ndarray] = {}
+
+def compute_kmer_deviation(seq: str, ref_seqs: dict[str, str], k: int = 4) -> float:
+    """
+    Cosine distance between the marker's k-mer profile and the full reference
+    genome's k-mer profile.  Values near 0 = compositionally typical; values
+    near 1 = highly atypical (candidate horizontal transfer / PAI region).
+    """
+    cache_key = f"k{k}_full"
+    if cache_key not in _GENOME_KMER_CACHE:
+        full_seq = "".join(ref_seqs.values())
+        _GENOME_KMER_CACHE[cache_key] = build_kmer_profile(full_seq, k)
+    genome_profile = _GENOME_KMER_CACHE[cache_key]
+
+    marker_profile = build_kmer_profile(seq, k)
+    denom = np.linalg.norm(marker_profile) * np.linalg.norm(genome_profile)
+    if denom == 0:
+        return 0.0
+    cosine_sim = np.dot(marker_profile, genome_profile) / denom
+    return float(1.0 - cosine_sim)   # cosine distance: 0=identical, 1=orthogonal
+
+
 def compute_blast_features(marker_id: str, blast_df: pd.DataFrame) -> tuple[float, float]:
     """
     For a given marker, return (max_identity, coverage_fraction) from BLAST hits.
@@ -166,11 +205,64 @@ def load_pangenome_scores() -> dict[str, float]:
     return scores
 
 
+def compute_pangenome_presence(
+    meta: pd.DataFrame,
+    tiered_blocks_path: Path,
+) -> pd.DataFrame:
+    """
+    For each marker, compute:
+      presence_pathogenic     = fraction of pathogenic strains whose NUCmer
+                                alignment covers the marker region
+      presence_non_pathogenic = same for non-pathogenic strains
+      pangenome_score         = presence_pathogenic - presence_non_pathogenic
+
+    Uses NUCmer tiered_blocks.tsv — no additional BLAST required.
+    A strain is counted as 'covering' a marker if it has ≥1 alignment block
+    that overlaps the marker region on the same reference contig.
+    """
+    PATHOGENIC = {"EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC"}
+
+    blocks = pd.read_csv(tiered_blocks_path, sep="\t")
+    # Strain → pathotype map
+    strain_pathotype = blocks[["label", "pathotype"]].drop_duplicates()
+    path_strains    = set(strain_pathotype.loc[strain_pathotype["pathotype"].isin(PATHOGENIC), "label"])
+    nonpath_strains = set(strain_pathotype.loc[~strain_pathotype["pathotype"].isin(PATHOGENIC), "label"])
+    n_path    = max(len(path_strains), 1)
+    n_nonpath = max(len(nonpath_strains), 1)
+
+    rows = []
+    for _, m in meta.iterrows():
+        contig  = m["contig"]
+        m_start = int(m["start"])
+        m_end   = int(m["end"])
+
+        # Blocks on the same reference contig that overlap [m_start, m_end]
+        overlap = blocks[
+            (blocks["ref_contig"] == contig) &
+            (blocks["ref_start"] <= m_end) &
+            (blocks["ref_end"]   >= m_start)
+        ]
+
+        strains_present = set(overlap["label"].unique())
+        pres_path    = len(strains_present & path_strains)    / n_path
+        pres_nonpath = len(strains_present & nonpath_strains) / n_nonpath
+
+        rows.append({
+            "marker_id":              m["marker_id"],
+            "presence_pathogenic":    round(pres_path, 4),
+            "presence_non_pathogenic": round(pres_nonpath, 4),
+            "pangenome_score":        round(pres_path - pres_nonpath, 4),
+        })
+
+    return pd.DataFrame(rows).set_index("marker_id")
+
+
 def build_feature_matrix(
     meta: pd.DataFrame,
     blast_df: pd.DataFrame,
     ref_seqs: dict[str, str],
     pangenome_scores: dict[str, float],
+    pan_presence: pd.DataFrame,
 ) -> pd.DataFrame:
     rows = []
     for _, m in meta.iterrows():
@@ -185,22 +277,35 @@ def build_feature_matrix(
         seq = ref_seqs[contig][start - 1:end]
 
         max_id, coverage = compute_blast_features(mid, blast_df)
-        pangenome_score  = pangenome_scores.get(
-            mid,
-            {"CONSERVED": 0.1, "MODERATE": 0.6, "DIVERGED": 0.9}[tier],
-        )
+
+        # Pangenome score: Anvi'o enrichment if available, else NUCmer-derived
+        if mid in pan_presence.index:
+            pan_score   = pan_presence.loc[mid, "pangenome_score"]
+            pres_path   = pan_presence.loc[mid, "presence_pathogenic"]
+            pres_nonpath = pan_presence.loc[mid, "presence_non_pathogenic"]
+        elif mid in pangenome_scores:
+            pan_score    = pangenome_scores[mid]
+            pres_path    = float("nan")
+            pres_nonpath = float("nan")
+        else:
+            pan_score    = 0.0
+            pres_path    = 0.0
+            pres_nonpath = 0.0
 
         rows.append({
-            "marker_id":       mid,
-            "tier":            tier,
-            "blastn_identity": max_id,
-            "cai_score":       compute_cai_proxy(seq),
-            "gc_delta":        compute_gc_delta(seq),
-            "srna_density":    compute_srna_density_proxy(seq),
-            "align_coverage":  coverage,
-            "tier_encoded":    TIER_ENCODING[tier],
-            "pangenome_score": pangenome_score,
-            "label":           1 if tier == "DIVERGED" else 0,
+            "marker_id":               mid,
+            "tier":                    tier,
+            "blastn_identity":         max_id,
+            "cai_score":               compute_cai_proxy(seq),
+            "gc_delta":                compute_gc_delta(seq),
+            "srna_density":            compute_srna_density_proxy(seq),
+            "align_coverage":          coverage,
+            "kmer_deviation":          compute_kmer_deviation(seq, ref_seqs),
+            "presence_pathogenic":     pres_path,
+            "presence_non_pathogenic": pres_nonpath,
+            "pangenome_score":         pan_score,
+            "tier_encoded":            TIER_ENCODING[tier],
+            "label":                   1 if tier == "DIVERGED" else 0,
         })
 
     return pd.DataFrame(rows)
@@ -211,6 +316,8 @@ def build_feature_matrix(
 FEATURE_COLS = [
     "blastn_identity", "cai_score", "gc_delta",
     "srna_density", "align_coverage",
+    "kmer_deviation",
+    "presence_pathogenic", "presence_non_pathogenic", "pangenome_score",
 ]
 
 
@@ -285,8 +392,17 @@ def main() -> None:
     ref_seqs = {rec.id: str(rec.seq) for rec in SeqIO.parse(str(REFERENCE), "fasta")}
     pan_scores = load_pangenome_scores()
 
+    # New features: k-mer deviation (computed inside build_feature_matrix)
+    # and NUCmer-derived pangenome presence/absence
+    tiered_blocks_path = REPO_ROOT / "data" / "results" / "tiered_blocks.tsv"
+    log.info("Computing pangenome presence/absence from NUCmer blocks")
+    pan_presence = compute_pangenome_presence(meta, tiered_blocks_path)
+    log.info("  Pangenome score range: %.3f – %.3f",
+             pan_presence["pangenome_score"].min(),
+             pan_presence["pangenome_score"].max())
+
     log.info("Building feature matrix for %d markers", len(meta))
-    df = build_feature_matrix(meta, blast_df, ref_seqs, pan_scores)
+    df = build_feature_matrix(meta, blast_df, ref_seqs, pan_scores, pan_presence)
 
     if df.empty:
         log.error("Feature matrix is empty — check upstream pipeline steps")
