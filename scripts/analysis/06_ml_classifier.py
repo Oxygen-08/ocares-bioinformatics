@@ -66,7 +66,11 @@ ML_DIR.mkdir(parents=True, exist_ok=True)
 VIZ_DIR     = REPO_ROOT / "data" / "results" / "figures"
 VIZ_DIR.mkdir(parents=True, exist_ok=True)
 
-REFERENCE   = REPO_ROOT / "data" / "genomes" / "O157H7_Sakai" / "O157H7_Sakai.fna"
+REFERENCE        = REPO_ROOT / "data" / "genomes" / "O157H7_Sakai" / "O157H7_Sakai.fna"
+REFERENCE_REFORM = REPO_ROOT / "data" / "results" / "pangenome" / "reformatted" / "O157H7_Sakai.fna"
+GENE_CLUSTERS    = REPO_ROOT / "data" / "results" / "pangenome" / "gene_clusters.tsv"
+GENOME_MANIFEST  = REPO_ROOT / "data" / "genomes" / "genome_manifest.tsv"
+PANGENOME_DIR    = REPO_ROOT / "data" / "results" / "pangenome"
 
 TIER_ENCODING = {"CONSERVED": 0, "MODERATE": 1, "DIVERGED": 2}
 
@@ -257,12 +261,113 @@ def compute_pangenome_presence(
     return pd.DataFrame(rows).set_index("marker_id")
 
 
+def compute_anvio_cluster_score(meta: pd.DataFrame) -> pd.DataFrame:
+    """
+    Pathogen enrichment score derived from Anvi'o gene cluster presence/absence.
+
+    Steps:
+      1. Build reformatted→original contig name map for O157H7_Sakai (by FASTA order).
+      2. Export Sakai gene calls from the contigs DB (or reuse cached TSV).
+      3. For each gene cluster, compute fraction of pathogenic vs non-pathogenic
+         genomes that carry it.
+      4. For each marker, average the cluster enrichment scores of all Sakai genes
+         overlapping the marker region.
+
+    Returns DataFrame indexed by marker_id with column 'anvio_cluster_score'.
+    """
+    import subprocess
+
+    PATHOGENIC = {"EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC"}
+
+    # ── 1. Contig name mapping: reformatted → original ────────────────────────
+    orig_ids     = [r.id for r in SeqIO.parse(str(REFERENCE), "fasta")]
+    reformed_ids = [r.id for r in SeqIO.parse(str(REFERENCE_REFORM), "fasta")]
+    reformed_to_orig = dict(zip(reformed_ids, orig_ids))
+
+    # ── 2. Sakai gene calls with positions ────────────────────────────────────
+    sakai_db     = PANGENOME_DIR / "contigs_dbs" / "O157H7_Sakai.db"
+    gene_calls_f = PANGENOME_DIR / "sakai_gene_calls.tsv"
+    if not gene_calls_f.exists():
+        anvi_bin = Path(
+            subprocess.check_output(
+                ["which", "anvi-export-gene-calls"],
+                env={**__import__("os").environ,
+                     "PATH": "/opt/anaconda3/envs/anvio8/bin:" + __import__("os").environ["PATH"]},
+            ).decode().strip()
+        )
+        subprocess.run(
+            [str(anvi_bin), "-c", str(sakai_db), "--gene-caller", "prodigal",
+             "-o", str(gene_calls_f)],
+            env={**__import__("os").environ,
+                 "PATH": "/opt/anaconda3/envs/anvio8/bin:" + __import__("os").environ["PATH"]},
+            check=True, capture_output=True,
+        )
+    gene_calls = pd.read_csv(gene_calls_f, sep="\t",
+                             usecols=["gene_callers_id", "contig", "start", "stop"])
+    gene_calls["orig_contig"] = gene_calls["contig"].map(reformed_to_orig)
+
+    # ── 3. Gene cluster membership ────────────────────────────────────────────
+    gc = pd.read_csv(GENE_CLUSTERS, sep="\t",
+                     usecols=["gene_caller_id", "gene_cluster_id", "genome_name"])
+    sakai_gc = gc[gc["genome_name"] == "O157H7_Sakai"][["gene_caller_id", "gene_cluster_id"]]
+    gene_calls = gene_calls.merge(sakai_gc, left_on="gene_callers_id",
+                                  right_on="gene_caller_id", how="left")
+
+    # ── 4. Pathogen enrichment per cluster ───────────────────────────────────
+    manifest = pd.read_csv(GENOME_MANIFEST, sep="\t")
+    pathogen_genomes = set(manifest.loc[manifest["pathotype"].isin(PATHOGENIC), "label"])
+    nonpath_genomes  = set(manifest.loc[~manifest["pathotype"].isin(PATHOGENIC), "label"])
+    n_path    = max(len(pathogen_genomes), 1)
+    n_nonpath = max(len(nonpath_genomes), 1)
+
+    # gene_clusters.tsv uses G_-prefixed safe labels for digit-starting genomes;
+    # normalise to match manifest labels before membership lookup
+    def _norm(name: str) -> str:
+        return name[2:] if name.startswith("G_") else name
+
+    cluster_genomes = gc.groupby("gene_cluster_id")["genome_name"].apply(
+        lambda s: {_norm(n) for n in s}
+    ).to_dict()
+
+    cluster_scores: dict[str, float] = {}
+    for cid, genomes in cluster_genomes.items():
+        pres_path    = len(genomes & pathogen_genomes)    / n_path
+        pres_nonpath = len(genomes & nonpath_genomes)     / n_nonpath
+        cluster_scores[cid] = pres_path - pres_nonpath
+
+    # ── 5. Per-marker score ───────────────────────────────────────────────────
+    rows = []
+    for _, m in meta.iterrows():
+        contig  = m["contig"]
+        m_start = int(m["start"])
+        m_end   = int(m["end"])
+
+        overlap = gene_calls[
+            (gene_calls["orig_contig"] == contig) &
+            (gene_calls["start"]       <= m_end)  &
+            (gene_calls["stop"]        >= m_start) &
+            gene_calls["gene_cluster_id"].notna()
+        ]
+
+        if overlap.empty:
+            score = 0.0
+        else:
+            score = float(np.mean(
+                [cluster_scores.get(cid, 0.0) for cid in overlap["gene_cluster_id"]]
+            ))
+
+        rows.append({"marker_id": m["marker_id"], "anvio_cluster_score": round(score, 4)})
+
+    return pd.DataFrame(rows).set_index("marker_id")
+
+
 def build_feature_matrix(
     meta: pd.DataFrame,
     blast_df: pd.DataFrame,
     ref_seqs: dict[str, str],
     pangenome_scores: dict[str, float],
     pan_presence: pd.DataFrame,
+    anvio_scores: pd.DataFrame,
 ) -> pd.DataFrame:
     rows = []
     for _, m in meta.iterrows():
@@ -278,10 +383,10 @@ def build_feature_matrix(
 
         max_id, coverage = compute_blast_features(mid, blast_df)
 
-        # Pangenome score: Anvi'o enrichment if available, else NUCmer-derived
+        # NUCmer-derived pangenome presence features
         if mid in pan_presence.index:
-            pan_score   = pan_presence.loc[mid, "pangenome_score"]
-            pres_path   = pan_presence.loc[mid, "presence_pathogenic"]
+            pan_score    = pan_presence.loc[mid, "pangenome_score"]
+            pres_path    = pan_presence.loc[mid, "presence_pathogenic"]
             pres_nonpath = pan_presence.loc[mid, "presence_non_pathogenic"]
         elif mid in pangenome_scores:
             pan_score    = pangenome_scores[mid]
@@ -291,6 +396,10 @@ def build_feature_matrix(
             pan_score    = 0.0
             pres_path    = 0.0
             pres_nonpath = 0.0
+
+        # Anvi'o gene-cluster-derived enrichment score
+        anvio_score = float(anvio_scores.loc[mid, "anvio_cluster_score"]) \
+            if mid in anvio_scores.index else 0.0
 
         rows.append({
             "marker_id":               mid,
@@ -304,6 +413,7 @@ def build_feature_matrix(
             "presence_pathogenic":     pres_path,
             "presence_non_pathogenic": pres_nonpath,
             "pangenome_score":         pan_score,
+            "anvio_cluster_score":     anvio_score,
             "tier_encoded":            TIER_ENCODING[tier],
             "label":                   1 if tier == "DIVERGED" else 0,
         })
@@ -318,6 +428,7 @@ FEATURE_COLS = [
     "srna_density", "align_coverage",
     "kmer_deviation",
     "presence_pathogenic", "presence_non_pathogenic", "pangenome_score",
+    "anvio_cluster_score",
 ]
 
 
@@ -392,17 +503,21 @@ def main() -> None:
     ref_seqs = {rec.id: str(rec.seq) for rec in SeqIO.parse(str(REFERENCE), "fasta")}
     pan_scores = load_pangenome_scores()
 
-    # New features: k-mer deviation (computed inside build_feature_matrix)
-    # and NUCmer-derived pangenome presence/absence
     tiered_blocks_path = REPO_ROOT / "data" / "results" / "tiered_blocks.tsv"
     log.info("Computing pangenome presence/absence from NUCmer blocks")
     pan_presence = compute_pangenome_presence(meta, tiered_blocks_path)
-    log.info("  Pangenome score range: %.3f – %.3f",
+    log.info("  NUCmer pangenome score range: %.3f – %.3f",
              pan_presence["pangenome_score"].min(),
              pan_presence["pangenome_score"].max())
 
+    log.info("Computing Anvi'o gene-cluster enrichment scores")
+    anvio_scores = compute_anvio_cluster_score(meta)
+    log.info("  Anvi'o cluster score range: %.3f – %.3f",
+             anvio_scores["anvio_cluster_score"].min(),
+             anvio_scores["anvio_cluster_score"].max())
+
     log.info("Building feature matrix for %d markers", len(meta))
-    df = build_feature_matrix(meta, blast_df, ref_seqs, pan_scores, pan_presence)
+    df = build_feature_matrix(meta, blast_df, ref_seqs, pan_scores, pan_presence, anvio_scores)
 
     if df.empty:
         log.error("Feature matrix is empty — check upstream pipeline steps")
