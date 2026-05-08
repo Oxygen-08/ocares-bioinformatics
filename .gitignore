@@ -1,3 +1,10 @@
+# Junk folder — superseded scripts kept for local review, never committed
+_junk/
+
+# Python cache
+__pycache__/
+**/__pycache__/
+
 # Rendered notebook exports — regenerate locally with: jupyter nbconvert --to html
 docs/*.html
 
