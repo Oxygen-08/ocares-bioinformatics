@@ -5,24 +5,39 @@ channels:
   - defaults
 dependencies:
   - python=3.11
-  # Alignment & comparative genomics
-  - mummer4>=4.0.0
-  - blast>=2.16.0
-  - bedtools>=2.31.0
-  - samtools>=1.20
-  # Genome downloads
-  - ncbi-genome-download>=0.3.3
-  # Python scientific stack
-  - biopython>=1.83
+
+  # ── Alignment & comparative genomics (CLI tools) ───────────────────────────
+  - mummer4>=4.0.0         # Steps 02-03: NUCmer tiered alignment
+  - blast>=2.16.0          # Step 04: BLAST marker screen
+  - bedtools>=2.31.0       # Step 03: coordinate operations
+
+  # ── Genome acquisition ─────────────────────────────────────────────────────
+  - ncbi-genome-download>=0.3.3  # Step 01: RefSeq assembly download
+
+  # ── Read simulation ────────────────────────────────────────────────────────
+  - insilicoseq>=2.0       # Step 05: synthetic metagenome (NovaSeq error model)
+
+  # ── Python scientific stack ────────────────────────────────────────────────
+  - biopython>=1.83        # FASTA I/O, CAI, SeqUtils throughout
   - pandas>=2.0
   - numpy>=1.26
   - scipy>=1.12
   - matplotlib>=3.8
   - seaborn>=0.13
-  - scikit-learn>=1.4
-  - xgboost>=2.0
-  - shap>=0.45
-  - insilicoseq
+
+  # ── Machine learning ───────────────────────────────────────────────────────
+  - scikit-learn>=1.4      # Step 06: StratifiedKFold, ROC/PR metrics
+  - xgboost>=2.0           # Step 06: XGBoost classifier
+  - shap>=0.45             # Step 06: SHAP feature importance
+
+  # ── Dev / notebook tools ───────────────────────────────────────────────────
+  - jupyter
+  - ipykernel
+  - pre-commit>=3.0.0
   - pip
   - pip:
-    - upsetplot
+    - nbstripout>=0.7.1    # pre-commit hook: strips notebook output before commit
+
+# ── NOTE: Step 07 (Anvi'o pangenome) requires a separate environment ─────────
+# Install with: conda create -n anvio8 -c conda-forge -c bioconda anvio=8
+# Then run:     conda activate anvio8 && bash scripts/analysis/07_pangenome_anvio.sh
