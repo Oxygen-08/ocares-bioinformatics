@@ -198,15 +198,10 @@ def load_pangenome_scores() -> dict[str, float]:
     heuristic: CONSERVED=0.1, MODERATE=0.6, DIVERGED=0.9 (reflecting that
     highly diverged regions are enriched in pathogen-unique gene clusters).
     """
-    enrichment_file = REPO_ROOT / "data" / "results" / "pangenome" / "enrichment_scores.tsv"
-    if not enrichment_file.exists():
-        log.warning("Pangenome enrichment file not found — using tier-derived heuristic")
-        return {}
-    scores = {}
-    with open(enrichment_file) as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
-            scores[row["marker_id"]] = float(row["enrichment_score"])
-    return scores
+    # COG functional enrichment is handled by compute_cog_enrichment_score.
+    # NUCmer-derived pangenome_score from compute_pangenome_presence covers
+    # the per-marker signal. Nothing left for this function to do.
+    return {}
 
 
 def compute_pangenome_presence(
@@ -361,6 +356,91 @@ def compute_anvio_cluster_score(meta: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).set_index("marker_id")
 
 
+def compute_cog_enrichment_score(meta: pd.DataFrame) -> pd.DataFrame:
+    """
+    Per-marker COG functional enrichment score derived from
+    anvi-compute-functional-enrichment-in-pan output.
+
+    For each significantly PATHOGEN-enriched COG function (q < 0.05), the
+    enrichment score is assigned to every gene cluster carrying that function.
+    For each marker, the score is the maximum enrichment score across all
+    overlapping Sakai gene clusters.  Normalised to [0, 1] by dividing by the
+    observed max score across all clusters.
+    """
+    enrichment_file = PANGENOME_DIR / "enrichment_scores.tsv"
+    if not enrichment_file.exists():
+        log.warning("enrichment_scores.tsv not found — cog_enrichment_score will be 0")
+        return pd.DataFrame(
+            [{"marker_id": m, "cog_enrichment_score": 0.0} for m in meta["marker_id"]]
+        ).set_index("marker_id")
+
+    enrich = pd.read_csv(enrichment_file, sep="\t")
+    sig = enrich[
+        (enrich["adjusted_q_value"] < 0.05) &
+        (enrich["associated_groups"] == "PATHOGEN")
+    ]
+
+    # Build cluster → enrichment score map (max score when cluster appears in
+    # multiple significant functions — rare but possible)
+    cluster_enrich: dict[str, float] = {}
+    for _, row in sig.iterrows():
+        score = float(row["enrichment_score"])
+        for cid in str(row["gene_clusters_ids"]).split(","):
+            cid = cid.strip()
+            if cid:
+                cluster_enrich[cid] = max(cluster_enrich.get(cid, 0.0), score)
+
+    max_score = max(cluster_enrich.values()) if cluster_enrich else 1.0
+
+    # Reuse Sakai gene→cluster mapping from the cached gene calls
+    gene_calls_f = PANGENOME_DIR / "sakai_gene_calls.tsv"
+    if not gene_calls_f.exists():
+        log.warning("sakai_gene_calls.tsv not found — cog_enrichment_score will be 0")
+        return pd.DataFrame(
+            [{"marker_id": m, "cog_enrichment_score": 0.0} for m in meta["marker_id"]]
+        ).set_index("marker_id")
+
+    orig_ids     = [r.id for r in SeqIO.parse(str(REFERENCE), "fasta")]
+    reformed_ids = [r.id for r in SeqIO.parse(str(REFERENCE_REFORM), "fasta")]
+    reformed_to_orig = dict(zip(reformed_ids, orig_ids))
+
+    gene_calls = pd.read_csv(gene_calls_f, sep="\t",
+                             usecols=["gene_callers_id", "contig", "start", "stop"])
+    gene_calls["orig_contig"] = gene_calls["contig"].map(reformed_to_orig)
+
+    gc = pd.read_csv(GENE_CLUSTERS, sep="\t",
+                     usecols=["gene_caller_id", "gene_cluster_id", "genome_name"])
+    sakai_gc = gc[gc["genome_name"] == "O157H7_Sakai"][["gene_caller_id", "gene_cluster_id"]]
+    gene_calls = gene_calls.merge(sakai_gc, left_on="gene_callers_id",
+                                  right_on="gene_caller_id", how="left")
+
+    rows = []
+    for _, m in meta.iterrows():
+        contig  = m["contig"]
+        m_start = int(m["start"])
+        m_end   = int(m["end"])
+
+        overlap = gene_calls[
+            (gene_calls["orig_contig"] == contig) &
+            (gene_calls["start"]       <= m_end)  &
+            (gene_calls["stop"]        >= m_start) &
+            gene_calls["gene_cluster_id"].notna()
+        ]
+
+        if overlap.empty:
+            score = 0.0
+        else:
+            raw = max(cluster_enrich.get(cid, 0.0)
+                      for cid in overlap["gene_cluster_id"])
+            score = round(raw / max_score, 4)
+
+        rows.append({"marker_id": m["marker_id"], "cog_enrichment_score": score})
+
+    log.info("  COG enrichment: %d significant PATHOGEN-enriched functions, "
+             "%d clusters with scores", len(sig), len(cluster_enrich))
+    return pd.DataFrame(rows).set_index("marker_id")
+
+
 def build_feature_matrix(
     meta: pd.DataFrame,
     blast_df: pd.DataFrame,
@@ -368,6 +448,7 @@ def build_feature_matrix(
     pangenome_scores: dict[str, float],
     pan_presence: pd.DataFrame,
     anvio_scores: pd.DataFrame,
+    cog_scores: pd.DataFrame,
 ) -> pd.DataFrame:
     rows = []
     for _, m in meta.iterrows():
@@ -397,9 +478,10 @@ def build_feature_matrix(
             pres_path    = 0.0
             pres_nonpath = 0.0
 
-        # Anvi'o gene-cluster-derived enrichment score
         anvio_score = float(anvio_scores.loc[mid, "anvio_cluster_score"]) \
             if mid in anvio_scores.index else 0.0
+        cog_score = float(cog_scores.loc[mid, "cog_enrichment_score"]) \
+            if mid in cog_scores.index else 0.0
 
         rows.append({
             "marker_id":               mid,
@@ -414,6 +496,7 @@ def build_feature_matrix(
             "presence_non_pathogenic": pres_nonpath,
             "pangenome_score":         pan_score,
             "anvio_cluster_score":     anvio_score,
+            "cog_enrichment_score":    cog_score,
             "tier_encoded":            TIER_ENCODING[tier],
             "label":                   1 if tier == "DIVERGED" else 0,
         })
@@ -516,8 +599,12 @@ def main() -> None:
              anvio_scores["anvio_cluster_score"].min(),
              anvio_scores["anvio_cluster_score"].max())
 
+    log.info("Computing COG14 functional enrichment scores")
+    cog_scores = compute_cog_enrichment_score(meta)
+
     log.info("Building feature matrix for %d markers", len(meta))
-    df = build_feature_matrix(meta, blast_df, ref_seqs, pan_scores, pan_presence, anvio_scores)
+    df = build_feature_matrix(meta, blast_df, ref_seqs, pan_scores, pan_presence,
+                              anvio_scores, cog_scores)
 
     if df.empty:
         log.error("Feature matrix is empty — check upstream pipeline steps")
