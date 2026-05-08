@@ -1,0 +1,4 @@
+DIVERGED markers: 109
+Absent from all K12 strains: 54 (49.5%)
+Overlap known virulence loci: 14
+Overlap COG-enriched clusters: 3
