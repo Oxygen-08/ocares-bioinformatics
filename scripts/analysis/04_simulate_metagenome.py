@@ -4,12 +4,13 @@ Generate a simulated metagenomic community using InSilicoSeq 2.0.
 
 Community design (justified against CAMI II strain-madness benchmark strategy):
   - O157:H7 Sakai          : target pathogen, spiked at 1%, 5%, 10% relative abundance
-  - SE11 (EPEC)            : closest non-pathogenic relative (shares O-islands, no stx)
+  - SE11 (EPEC)            : pathogenic EPEC strain included as a deliberate close-relative
+                             challenge — shares O-island structure with O157:H7 but lacks stx
   - K-12 MG1655            : canonical non-pathogenic lab strain
-  - Nissle 1917            : probiotic EPEC — deliberate false-positive trap
+  - Nissle 1917            : probiotic strain — deliberate false-positive trap
   - 2 gut commensals       : environmental background noise
 
-Sequencing model: HiSeq 2500 (250 bp PE) — most common in CAMI II comparisons.
+Sequencing model: Illumina HiSeq 2500 (150 bp PE via InSilicoSeq HiSeq model).
 Three community compositions generated (low/mid/high spike) to characterise
 sensitivity across a detection gradient.
 
