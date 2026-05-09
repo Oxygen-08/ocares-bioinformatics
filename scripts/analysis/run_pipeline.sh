@@ -76,11 +76,11 @@ log "Step 08 — Biological sanity checks"
 
 if [[ "$SKIP_PLOTS" == false ]]; then
     log "Plots — Alignment landscape"
-    "${PYTHON}" "${SCRIPTS}/plot_alignment_landscape.py"
+    "${PYTHON}" "${SCRIPTS}/fig_alignment_landscape.py"
     log "Plots — ML results (ROC, confusion matrix, feature correlation)"
-    "${PYTHON}" "${SCRIPTS}/plot_results.py"
+    "${PYTHON}" "${SCRIPTS}/fig_results.py"
     log "Plots — Pangenome (composition, enrichment, heatmap)"
-    "${PYTHON}" "${SCRIPTS}/plot_pangenome.py"
+    "${PYTHON}" "${SCRIPTS}/fig_pangenome.py"
 fi
 
 log ""

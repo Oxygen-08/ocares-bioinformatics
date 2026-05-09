@@ -1,94 +1,17 @@
-# Junk folder — superseded scripts kept for local review, never committed
-_junk/
-
-# Python cache
+# ── Python cache ──────────────────────────────────────────────────────────────
 __pycache__/
 **/__pycache__/
-
-# Rendered notebook exports — regenerate locally with: jupyter nbconvert --to html
-docs/*.html
-
-# Local data directory — FASTA inputs live here but are never committed (too large)
-data/
-
-# Bioinformatics data files
-*.fasta
-*.fastq
-*.fa
-*.fq
-*.sam
-*.bam
-*.vcf
-*.gff
-*.gtf
-*.bed
-*.wig
-*.bigwig
-*.maf
-*.mum
-*.delta
-*.coords
-*.xmfa
-*.gb
-*.gbk
-*.genbank
-*.pdb
-*.aln
-*.blast
-*.hmm
-*.prf
-*.msa
-*.dnd
-*.phylip
-*.nwk
-*.newick
-
-# Ignore large data directories
-data/raw_genomes/
-data/reference_genomes/
-data/processed_genomes/
-results/alignments/
-results/blast_results/
-
-# Allow specific example data files to be included with "!" prefix if needed
-# !data/reference_genomes/example.fasta
-
-# Temporary/intermediate files
-temp/
-tmp/
-.temp/
-.tmp/
-*.tmp
-*.temp
-*.swp
-*~
-
-# Python artifacts
-__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 .ipynb_checkpoints/
 *.ipynb_checkpoints/
 
-# Environments
+# ── Virtual environments ───────────────────────────────────────────────────────
 .env
 .venv
 env/
@@ -99,74 +22,29 @@ venv.bak/
 .conda/
 .python-version
 
-# System specific files
-.DS_Store
-.AppleDouble
-.LSOverride
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-*.lnk
+# ── Data directory (too large for git) ────────────────────────────────────────
+data/
 
-# IDE and editor files
-.idea/
-.vscode/
-*.sublime-project
-*.sublime-workspace
-.project
-.pydevproject
-.settings/
-*.swp
-*.swo
-*~
-.ropeproject/
+# ── Bioinformatics intermediate files ─────────────────────────────────────────
+*.fasta
+*.fastq
+*.fa
+*.fq
+*.sam
+*.bam
+*.vcf
+*.gff
+*.gtf
+*.bed
+*.delta
+*.coords
+*.blast
+*.hmm
+*.msa
+*.nwk
+*.newick
 
-# Package files
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# Large graphics files
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.tiff
-*.bmp
-*.pdf
-*.ps
-*.svg
-*.eps
-
-# Allow specific graphics in the repo (for documentation)
-!docs/*.png
-!docs/*.jpg
-!docs/*.pdf
-!docs/*.svg
-
-# ── Curated metadata — force-tracked with git add -f (parent dir is ignored) ──
-# genome_manifest.tsv is committed despite data/ ignore — do not remove it
-
-# ── Thesis results: allow key output files ────────────────────────────────────
-!data/results/figures/*.png
-!data/results/figures/*.svg
-!data/results/markers/marker_metadata.tsv
-!data/results/ml/feature_matrix.tsv
-!data/results/ml/cv_results.tsv
-!data/results/ml/shap_values.tsv
-!data/results/blast_screen/classification_metrics.tsv
-!data/results/bio_sanity/*.tsv
-!data/results/bio_sanity/*.txt
-!data/results/pangenome/enrichment_scores.tsv
-!data/results/tier_summary.tsv
-!data/results/tiered_blocks.tsv
-
-# Ignore large binary/intermediate files
+# ── Large binary/intermediate pipeline outputs ────────────────────────────────
 data/results/pangenome/*.db
 data/results/pangenome/*.dmnd
 data/results/pangenome/*.gz
@@ -180,24 +58,71 @@ data/results/blast_screen/*.fasta
 data/results/blast_screen/metagenome_db.*
 data/results/ml/model_xgb.json
 data/results/nucmer/
+data/results/minimap2/*.paf
 
-# Log files
+# ── Allow key results and figures to be committed ─────────────────────────────
+!data/genomes/genome_manifest.tsv
+!data/results/figures/*.png
+!data/results/figures/*.svg
+!data/results/figures/*.pptx
+!data/results/markers/marker_metadata.tsv
+!data/results/ml/feature_matrix.tsv
+!data/results/ml/cv_results.tsv
+!data/results/ml/shap_values.tsv
+!data/results/ml/ablation_results.tsv
+!data/results/blast_screen/classification_metrics.tsv
+!data/results/bio_sanity/*.tsv
+!data/results/bio_sanity/*.txt
+!data/results/pangenome/enrichment_scores.tsv
+!data/results/tier_summary.tsv
+!data/results/tiered_blocks.tsv
+!data/results/minimap2/window_scores_500bp.tsv
+!data/results/minimap2/candidates_schemeA_500bp.tsv
+
+# ── Temporary files ────────────────────────────────────────────────────────────
+temp/
+tmp/
+*.tmp
+*.temp
+*.swp
+*~
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Ignore authentication and config files with sensitive information
+# ── Graphics (large — allow exceptions above) ─────────────────────────────────
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.tiff
+*.bmp
+*.pdf
+*.ps
+*.svg
+*.eps
+
+# ── System files ──────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+Thumbs.db
+$RECYCLE.BIN/
+
+# ── IDE files ─────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.ropeproject/
+
+# ── Package archives ──────────────────────────────────────────────────────────
+*.zip
+*.tar.gz
+*.rar
+
+# ── Sensitive / machine-specific config ───────────────────────────────────────
 .netrc
-*_auth_token
-*_config.json
-.credentials/
 credentials.json
-
-# Local MCP config — machine-specific binary paths, never commit
 .claude/mcp.json
 
-# ncbi server venv — rebuilt locally with: python3 -m venv .venv && pip install -r requirements.txt
+# ── MCP server venv — rebuild with: pip install -r requirements.txt ──────────
 mcp_server/.venv/
-
