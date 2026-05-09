@@ -21,14 +21,14 @@ TW11681	Escherichia coli str. TW11681	ETEC	ST,CS6,EAST1	25002529	ENTREZ_RESOLVED
 042	Escherichia coli str. 042	EAEC	aatA,aaiC,aggR,aafA,irp2	20844578	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/042/042.fna	OK
 55989	Escherichia coli 55989	EAEC	aggR,aaiC,aafA,aat	19165319	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/55989/55989.fna	OK
 E2348_69	Escherichia coli str. E2348/69	EPEC	LEE,bfpA,eae-alpha,intimin-alpha	19682371	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/E2348_69/E2348_69.fna	OK
-TW10598	Escherichia coli O127:H6 str. TW10598	EPEC	LEE,bfpA,eae-alpha,intimin-alpha	0	GCF_018884405.1	PENDING	PENDING
+TW10598	Escherichia coli O127:H6 str. TW10598	EPEC	LEE,bfpA,eae-alpha,intimin-alpha	0	GCF_018884405.1	/Users/user/bioinformatics/data/genomes/TW10598/TW10598.fna	OK
 SE11	Escherichia coli str. SE11	EPEC	LEE,eae,type-III-secretion	19897727	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/SE11/SE11.fna	OK
 IHE3034	Escherichia coli str. IHE3034	NMEC	ibeA,neuC(K1),ompA,kpsMII,fimH	20952596	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/IHE3034/IHE3034.fna	OK
 CE10	Escherichia coli O7:K1 str. CE10	NMEC	kpsMII,iutA,iroN,hlyF,iss	22535208	GCF_000227625.1	/Users/user/bioinformatics/data/genomes/CE10/CE10.fna	OK
 LF82	Escherichia coli str. LF82	AIEC	fimH-variant,inv,csg,lpfA	20541499	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/LF82/LF82.fna	OK
-NRG857C	Escherichia coli O83:H1 str. NRG 857C	AIEC	fimH-variant,inv,lpfA,htrA,intracellular-replication	0	GCF_000183345.1	PENDING	PENDING
+NRG857C	Escherichia coli O83:H1 str. NRG 857C	AIEC	fimH-variant,inv,lpfA,htrA,intracellular-replication	0	GCF_000183345.1	/Users/user/bioinformatics/data/genomes/NRG857C/NRG857C.fna	OK
 UM146	Escherichia coli str. UM146	AIEC	fimH-variant,lpfA,intracellular-replication	20482583	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/UM146/UM146.fna	OK
-HUSEC2011	Escherichia coli str. HUSEC2011	EHEC	stx2,no-LEE,HUS-associated	0	GCF_000967155.2	PENDING	PENDING
+HUSEC2011	Escherichia coli str. HUSEC2011	EHEC	stx2,no-LEE,HUS-associated	0	GCF_000967155.2	/Users/user/bioinformatics/data/genomes/HUSEC2011/HUSEC2011.fna	OK
 K12_MG1655	Escherichia coli K-12 str. MG1655	K12	no_virulence_genes,lambda_minus	9278503	GCF_000005845.2	/Users/user/bioinformatics/data/genomes/K12_MG1655/K12_MG1655.fna	OK
 K12_W3110	Escherichia coli str. K-12 substr. W3110	K12	no_virulence_genes,F-minus,lacI	16738553	GCF_000010245.2	/Users/user/bioinformatics/data/genomes/K12_W3110/K12_W3110.fna	OK
 K12_DH10B	Escherichia coli str. K-12 substr. DH10B	K12	no_virulence_genes,endA1,recA1	18245128	GCF_000019425.1	/Users/user/bioinformatics/data/genomes/K12_DH10B/K12_DH10B.fna	OK
@@ -45,17 +45,17 @@ SE15	Escherichia coli str. SE15	COMMENSAL	no_stx,no_LEE,phylogroup_B2	19165319	E
 ABU83972	Escherichia coli str. ABU 83972	COMMENSAL	reductive_evolution,loss_of_virulence_genes	20507614	GCF_000148365.1	/Users/user/bioinformatics/data/genomes/ABU83972/ABU83972.fna	OK
 ATCC25922	Escherichia coli ATCC 25922	COMMENSAL	no_stx,no_LEE,antimicrobial_QC_reference	22168424	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/ATCC25922/ATCC25922.fna	OK
 W	Escherichia coli str. W	LAB_B	no_virulence_genes,industrial_fermentation	21278278	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/W/W.fna	OK
-K12_RV308	Escherichia coli K-12 substr. RV308	K12	no_virulence_genes,industrial_host,lacI_minus	0	GCF_000952955.1	PENDING	PENDING
+K12_RV308	Escherichia coli K-12 substr. RV308	K12	no_virulence_genes,industrial_host,lacI_minus	0	GCF_000952955.1	/Users/user/bioinformatics/data/genomes/K12_RV308/K12_RV308.fna	OK
 ATCC8739	Escherichia coli ATCC 8739	COMMENSAL	ATCC_type_strain,no_virulence	20830437	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/ATCC8739/ATCC8739.fna	OK
 ATCC11775	Escherichia coli DSM 30083 = JCM 1649 = ATCC 11775	COMMENSAL	type_strain,no_virulence_genes,commensal_origin	0	GCF_003697165.2	/Users/user/bioinformatics/data/genomes/ATCC11775/ATCC11775.fna	OK
-K12_NEB5alpha	Escherichia coli K-12 str. NEB5-alpha F'Iq	K12	no_virulence_genes,phi80_lacZdeltaM15,lacIq	0	GCF_013167075.1	PENDING	PENDING
-K12_DH5alpha	Escherichia coli K-12 str. DH5alpha	K12	no_virulence_genes,endA1,recA1_minus,phi80_lacZdeltaM15	0	GCF_002848225.1	PENDING	PENDING
-K12_AB1157	Escherichia coli K-12 substr. AB1157	K12	no_virulence_genes,uvrA6,lexA2_allele	0	GCF_020023255.1	PENDING	PENDING
-K12_J53	Escherichia coli K-12 J53	K12	no_virulence_genes,azide_resistant,metB	0	GCF_018417715.1	PENDING	PENDING
-K12_HMS174	Escherichia coli K-12 substr. HMS174	K12	no_virulence_genes,recA_minus,lambda_host	0	GCF_000953515.1	PENDING	PENDING
-K12_NCM3722	Escherichia coli NCM3722	K12	no_virulence_genes,prototrophic_K12	0	GCF_001043215.1	PENDING	PENDING
-B_C41DE3	Escherichia coli B str. C41(DE3)	LAB_B	no_virulence_genes,lon_minus_partial,ompT_minus	8702691	GCF_000830035.1	PENDING	PENDING
-B_C43DE3	Escherichia coli B str. C43(DE3)	LAB_B	no_virulence_genes,lon_minus_partial,ompT_minus	8702691	GCF_001039415.1	PENDING	PENDING
-K12_AG100	Escherichia coli K-12 substr. AG100	K12	no_virulence_genes,antibiotic_selection_marker	0	GCF_000981485.1	PENDING	PENDING
+K12_NEB5alpha	Escherichia coli K-12 str. NEB5-alpha F'Iq	K12	no_virulence_genes,phi80_lacZdeltaM15,lacIq	0	GCF_013167075.1	/Users/user/bioinformatics/data/genomes/K12_NEB5alpha/K12_NEB5alpha.fna	OK
+K12_DH5alpha	Escherichia coli K-12 str. DH5alpha	K12	no_virulence_genes,endA1,recA1_minus,phi80_lacZdeltaM15	0	GCF_002848225.1	/Users/user/bioinformatics/data/genomes/K12_DH5alpha/K12_DH5alpha.fna	OK
+K12_AB1157	Escherichia coli K-12 substr. AB1157	K12	no_virulence_genes,uvrA6,lexA2_allele	0	GCF_020023255.1	/Users/user/bioinformatics/data/genomes/K12_AB1157/K12_AB1157.fna	OK
+K12_J53	Escherichia coli K-12 J53	K12	no_virulence_genes,azide_resistant,metB	0	GCF_018417715.1	/Users/user/bioinformatics/data/genomes/K12_J53/K12_J53.fna	OK
+K12_HMS174	Escherichia coli K-12 substr. HMS174	K12	no_virulence_genes,recA_minus,lambda_host	0	GCF_000953515.1	/Users/user/bioinformatics/data/genomes/K12_HMS174/K12_HMS174.fna	OK
+K12_NCM3722	Escherichia coli NCM3722	K12	no_virulence_genes,prototrophic_K12	0	GCF_001043215.1	/Users/user/bioinformatics/data/genomes/K12_NCM3722/K12_NCM3722.fna	OK
+B_C41DE3	Escherichia coli B str. C41(DE3)	LAB_B	no_virulence_genes,lon_minus_partial,ompT_minus	8702691	GCF_000830035.1	/Users/user/bioinformatics/data/genomes/B_C41DE3/B_C41DE3.fna	OK
+B_C43DE3	Escherichia coli B str. C43(DE3)	LAB_B	no_virulence_genes,lon_minus_partial,ompT_minus	8702691	GCF_001039415.1	/Users/user/bioinformatics/data/genomes/B_C43DE3/B_C43DE3.fna	OK
+K12_AG100	Escherichia coli K-12 substr. AG100	K12	no_virulence_genes,antibiotic_selection_marker	0	GCF_000981485.1	/Users/user/bioinformatics/data/genomes/K12_AG100/K12_AG100.fna	OK
 SMS_3_5	Escherichia coli SMS-3-5	COMMENSAL	environmental_soil,no_virulence_islands	17965192	GCF_000019645.1	/Users/user/bioinformatics/data/genomes/SMS_3_5/SMS_3_5.fna	OK
-K12_NEB5alpha	Escherichia coli K-12 str. NEB5-alpha F'Iq	K12	no_virulence_genes,phi80_lacZdeltaM15,lacIq	0	GCF_013167075.1	PENDING	PENDING
+K12_NEB5alpha	Escherichia coli K-12 str. NEB5-alpha F'Iq	K12	no_virulence_genes,phi80_lacZdeltaM15,lacIq	0	GCF_013167075.1	/Users/user/bioinformatics/data/genomes/K12_NEB5alpha/K12_NEB5alpha.fna	OK

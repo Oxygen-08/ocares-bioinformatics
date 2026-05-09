@@ -635,6 +635,8 @@ def build_feature_matrix(
         rows.append({
             "marker_id":               mid,
             "contig":                  contig,
+            "start":                   start,
+            "end":                     end,
             "tier":                    tier,
             "blastn_identity":         max_id,
             "cai_score":               compute_cai(seq),
@@ -692,9 +694,21 @@ def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
              " (+ minimap2 gradient features)" if has_mm else "")
     X = df[available].values
     y = df["label"].values
-    # Group by contig so markers from the same Sakai genomic region never
-    # appear in both train and test — prevents spatial-autocorrelation leakage.
-    groups = df["contig"].values
+    # Group by genomic bin (500 kb windows on the main chromosome) so that
+    # spatially adjacent markers are never split across train/test folds.
+    # Using raw contig gives only 3 groups (2 plasmids + chromosome), which
+    # is insufficient for 5-fold CV. 500 kb bins on NC_002695.2 yield ~11
+    # groups; plasmid contigs are each treated as a single group.
+    BIN_SIZE = 500_000
+    def _make_bin(row):
+        if row["contig"] == "NC_002695.2":
+            return f"NC_002695.2_bin{int(row['start']) // BIN_SIZE:02d}"
+        return row["contig"]
+    groups = df.apply(_make_bin, axis=1).values
+    n_groups = len(set(groups))
+    n_splits = min(5, n_groups)
+    if n_splits < 5:
+        log.warning("Only %d spatial groups — reducing CV to %d folds", n_groups, n_splits)
 
     n_pos = y.sum()
     n_neg = len(y) - n_pos
@@ -715,14 +729,15 @@ def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
     # StratifiedGroupKFold: preserves label ratio across folds AND keeps all
     # markers from the same contig in the same fold, eliminating leakage from
     # spatially correlated markers (adjacent windows share NUCmer block context).
-    cv = StratifiedGroupKFold(n_splits=5)
+    cv = StratifiedGroupKFold(n_splits=n_splits)
     cv_results = cross_validate(
         clf, X, y, cv=cv, groups=groups,
         scoring=["roc_auc", "average_precision", "f1"],
         return_train_score=True,
     )
 
-    log.info("5-fold grouped CV (by contig) — AUROC: %.3f ± %.3f | AUPRC: %.3f ± %.3f | F1: %.3f ± %.3f",
+    log.info("%d-fold grouped CV (500kb bins) — AUROC: %.3f ± %.3f | AUPRC: %.3f ± %.3f | F1: %.3f ± %.3f",
+             n_splits,
              cv_results["test_roc_auc"].mean(),    cv_results["test_roc_auc"].std(),
              cv_results["test_average_precision"].mean(), cv_results["test_average_precision"].std(),
              cv_results["test_f1"].mean(),          cv_results["test_f1"].std())
