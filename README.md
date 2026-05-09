@@ -55,8 +55,8 @@ Two conda environments are required — the main pipeline and Anvi'o (which has 
 conda env create -f environment.yml
 conda activate fp_pipeline
 
-# 2. Anvi'o environment (Step 07 only)
-conda create -n anvio8 -c conda-forge -c bioconda anvio=8
+# 2. Anvi'o environment (Step 07 only) — pinned versions
+conda env create -f environment_anvio.yml
 ```
 
 ### Run Steps 01–06, 08 and all figures
@@ -88,6 +88,7 @@ Large files (genomes, simulated reads, alignment outputs) are gitignored. Key re
 
 | File | Description |
 |------|-------------|
+| `data/genomes/genome_manifest.tsv` | 60-strain manifest with GCF accessions, pathotypes, PMIDs |
 | `data/results/ml/feature_matrix.tsv` | 415 markers × 10 features |
 | `data/results/ml/cv_results.tsv` | 5-fold CV metrics |
 | `data/results/ml/shap_values.tsv` | Per-feature SHAP values |
