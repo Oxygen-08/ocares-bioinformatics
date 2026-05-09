@@ -49,7 +49,7 @@ from Bio.Data import CodonTable
 from Bio.SeqUtils import gc_fraction
 import xgboost as xgb
 import shap
-from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.model_selection import StratifiedGroupKFold, cross_validate
 from sklearn.metrics import (
     roc_auc_score, average_precision_score,
     precision_score, recall_score, f1_score,
@@ -569,6 +569,7 @@ def build_feature_matrix(
 
         rows.append({
             "marker_id":               mid,
+            "contig":                  contig,
             "tier":                    tier,
             "blastn_identity":         max_id,
             "cai_score":               compute_cai(seq),
@@ -602,6 +603,9 @@ FEATURE_COLS = [
 def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
     X = df[FEATURE_COLS].values
     y = df["label"].values
+    # Group by contig so markers from the same Sakai genomic region never
+    # appear in both train and test — prevents spatial-autocorrelation leakage.
+    groups = df["contig"].values
 
     n_pos = y.sum()
     n_neg = len(y) - n_pos
@@ -619,15 +623,17 @@ def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
         verbosity=0,
     )
 
-    # 5-fold stratified cross-validation
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    # StratifiedGroupKFold: preserves label ratio across folds AND keeps all
+    # markers from the same contig in the same fold, eliminating leakage from
+    # spatially correlated markers (adjacent windows share NUCmer block context).
+    cv = StratifiedGroupKFold(n_splits=5)
     cv_results = cross_validate(
-        clf, X, y, cv=cv,
+        clf, X, y, cv=cv, groups=groups,
         scoring=["roc_auc", "average_precision", "f1"],
         return_train_score=True,
     )
 
-    log.info("5-fold CV — AUROC: %.3f ± %.3f | AUPRC: %.3f ± %.3f | F1: %.3f ± %.3f",
+    log.info("5-fold grouped CV (by contig) — AUROC: %.3f ± %.3f | AUPRC: %.3f ± %.3f | F1: %.3f ± %.3f",
              cv_results["test_roc_auc"].mean(),    cv_results["test_roc_auc"].std(),
              cv_results["test_average_precision"].mean(), cv_results["test_average_precision"].std(),
              cv_results["test_f1"].mean(),          cv_results["test_f1"].std())
