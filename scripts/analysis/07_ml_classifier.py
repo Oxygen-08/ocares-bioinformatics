@@ -773,7 +773,72 @@ def compute_shap(clf: xgb.XGBClassifier, df: pd.DataFrame) -> None:
     shap_df.to_csv(ML_DIR / "shap_values.tsv", sep="\t", index=False)
 
 
+def run_ablation(df: pd.DataFrame, mode: str) -> None:
+    """Run a single ablation experiment and append results to ablation_results.tsv."""
+    import numpy as np
+    from sklearn.model_selection import cross_validate as _cv
+
+    available = [c for c in FEATURE_COLS if c in df.columns and df[c].notna().all()]
+    mm_cols   = ["mean_divergence", "flank_conservation_2000bp", "marker_score_2000bp",
+                 "proportion_high_windows", "proportion_mid_windows"]
+
+    if mode == "core10":
+        feats = [c for c in available if c not in mm_cols]
+        label = "Core 10 features (NUCmer baseline, grouped CV)"
+    elif mode == "gradient5":
+        feats = [c for c in available if c in mm_cols]
+        label = "Gradient 5 features only"
+    elif mode == "shuffle":
+        feats = available
+        label = "Label shuffle (null control)"
+    else:
+        raise ValueError(f"Unknown ablation mode: {mode}")
+
+    X = df[feats].values
+    y = df["label"].values.copy()
+    if mode == "shuffle":
+        np.random.seed(42)
+        np.random.shuffle(y)
+
+    BIN_SIZE = 500_000
+    def _make_bin(row):
+        return f"NC_002695.2_bin{int(row['start']) // BIN_SIZE:02d}" \
+               if row["contig"] == "NC_002695.2" else row["contig"]
+    groups   = df.apply(_make_bin, axis=1).values
+    n_splits = min(5, len(set(groups)))
+
+    n_neg = (y == 0).sum(); n_pos = y.sum()
+    clf = xgb.XGBClassifier(
+        n_estimators=200, max_depth=4, learning_rate=0.05,
+        subsample=0.8, colsample_bytree=0.8,
+        scale_pos_weight=n_neg / max(n_pos, 1),
+        eval_metric="aucpr", random_state=42, verbosity=0,
+    )
+    cv  = StratifiedGroupKFold(n_splits=n_splits)
+    res = _cv(clf, X, y, cv=cv, groups=groups,
+              scoring=["roc_auc", "average_precision", "f1"],
+              return_train_score=False)
+
+    auroc = res["test_roc_auc"].mean()
+    auprc = res["test_average_precision"].mean()
+    f1    = res["test_f1"].mean()
+    log.info("Ablation [%s] — AUROC: %.3f | AUPRC: %.3f | F1: %.3f", mode, auroc, auprc, f1)
+
+    out = ML_DIR / "ablation_results.tsv"
+    header = not out.exists()
+    with open(out, "a") as fh:
+        if header:
+            fh.write("mode\tlabel\tauroc\tauprc\tf1\tn_features\n")
+        fh.write(f"{mode}\t{label}\t{auroc:.4f}\t{auprc:.4f}\t{f1:.4f}\t{len(feats)}\n")
+
+
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="ML Classifier — pathogen marker XGBoost")
+    parser.add_argument("--ablation", choices=["core10", "gradient5", "shuffle", "all"],
+                        help="Run ablation experiment instead of full pipeline")
+    args = parser.parse_args()
+
     meta     = load_marker_metadata()
     blast_df = load_blast_results()
     ref_seqs = {rec.id: str(rec.seq) for rec in SeqIO.parse(str(REFERENCE), "fasta")}
@@ -805,6 +870,13 @@ def main() -> None:
     log.info("Feature matrix: %d rows × %d features", len(df), len(FEATURE_COLS))
     log.info("Class balance: %d positives / %d negatives",
              df["label"].sum(), (df["label"] == 0).sum())
+
+    if args.ablation:
+        modes = ["core10", "gradient5", "shuffle"] if args.ablation == "all" else [args.ablation]
+        for mode in modes:
+            run_ablation(df, mode)
+        log.info("Ablation complete. Results: %s", ML_DIR / "ablation_results.tsv")
+        return
 
     clf = train_and_evaluate(df)
     compute_shap(clf, df)

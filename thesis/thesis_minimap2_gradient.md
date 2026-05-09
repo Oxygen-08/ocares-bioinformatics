@@ -163,15 +163,19 @@ Results based on 30-commensal aggregated window scores (500 bp and 1000 bp windo
 
 Cross-validation: StratifiedGroupKFold (5 folds), groups defined as 500 kb genomic bins on NC_002695.2 and full-contig groups for the two plasmids. This grouping prevents spatial-autocorrelation leakage between adjacent markers while providing sufficient groups for 5-fold CV.
 
-| Experiment | AUROC | AUPRC | F1 | Notes |
-|-----------|-------|-------|-----|-------|
-| Core 10 features (NUCmer, prior ungrouped CV) | 0.745 | — | 0.449 | StratifiedKFold — leakage-inflated |
-| Combined 15 features (grouped CV) | **0.709 ± 0.045** | **0.426 ± 0.063** | **0.389 ± 0.115** | Leakage-free; 500 kb bin grouping |
-| Core 10 features (grouped CV, follow-up) | *pending* | *pending* | *pending* | Required for clean delta measurement |
-| Gradient 5 features only | *pending* | *pending* | *pending* | Ablation experiment |
-| Label shuffle | ~0.50 | — | — | Expected null result |
+| Experiment | AUROC | AUPRC | F1 | Features |
+|-----------|-------|-------|-----|---------|
+| Core 10 features (NUCmer, prior ungrouped CV) | 0.745 | — | 0.449 | 10 — leakage-inflated |
+| Core 10 features (NUCmer, grouped CV) | 0.717 | 0.430 | 0.416 | 10 — leakage-free baseline |
+| **Combined 15 features (grouped CV)** | **0.709 ± 0.045** | **0.426 ± 0.063** | **0.389 ± 0.115** | **15 — primary result** |
+| Gradient 5 features only | 0.549 | 0.307 | 0.257 | 5 — standalone signal |
+| Label shuffle (null control) | 0.428 | 0.242 | 0.170 | 15 — expected ~0.50 |
 
-The 0.036 AUROC difference between prior (0.745) and current (0.709) reflects the leakage correction from switching to grouped cross-validation, not a degradation in model quality. The grouped CV is the methodologically correct approach: markers from the same 500 kb genomic bin share NUCmer block context and are spatially autocorrelated.
+**Interpretation.** The corrected NUCmer baseline (0.717) is the appropriate reference for measuring the minimap2 gradient contribution. The combined 15-feature model (0.709) shows no statistically meaningful gain over the baseline given the ± 0.045 cross-validation uncertainty — the minimap2 gradient features do not independently improve discriminative accuracy when added to the established NUCmer compositional features.
+
+This result is interpretable and scientifically coherent. The gradient 5-feature ablation (0.549) confirms that divergence gradient features carry moderate standalone signal (well above the 0.428 null), but this signal is substantially captured by existing features (alignment coverage, GC delta, k-mer deviation) that measure related genomic properties. The gradient features' primary contribution is therefore not discriminative power but **biological interpretability**: the 10.9× negative control enrichment and the structured three-state representation of pathogen-vs-commensal divergence provide a mechanistically grounded account of candidate regions that the NUCmer block-tiering approach cannot offer at window resolution.
+
+The claim of the thesis is therefore properly bounded: the minimap2 divergence gradient is a richer, more interpretable feature representation; it does not claim superiority in AUROC.
 
 ### 4.3 Negative Control Results
 
