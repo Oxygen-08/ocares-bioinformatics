@@ -70,9 +70,10 @@ log = logging.getLogger(__name__)
 BIN_DIR = Path(sys.executable).parent
 
 REPO_ROOT   = Path(__file__).parents[2]
-MARKERS_DIR = REPO_ROOT / "data" / "results" / "markers"
-BLAST_DIR   = REPO_ROOT / "data" / "results" / "blast_screen"
-ML_DIR      = REPO_ROOT / "data" / "results" / "ml"
+MARKERS_DIR    = REPO_ROOT / "data" / "results" / "markers"
+BLAST_DIR      = REPO_ROOT / "data" / "results" / "blast_screen"
+ML_DIR         = REPO_ROOT / "data" / "results" / "ml"
+MINIMAP2_DIR   = REPO_ROOT / "data" / "results" / "minimap2"
 ML_DIR.mkdir(parents=True, exist_ok=True)
 VIZ_DIR     = REPO_ROOT / "data" / "results" / "figures"
 VIZ_DIR.mkdir(parents=True, exist_ok=True)
@@ -531,6 +532,60 @@ def compute_cog_enrichment_score(meta: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).set_index("marker_id")
 
 
+def load_minimap2_features(scheme: str = "A", window_size: int = 500) -> pd.DataFrame:
+    """Load minimap2 divergence gradient features if available (minimap2-gradient branch).
+
+    Matches candidates to NUCmer markers by contig + coordinate overlap.
+    Returns empty DataFrame if minimap2 results don't exist (falls back to core features).
+    """
+    candidates_path = MINIMAP2_DIR / f"candidates_scheme{scheme}_{window_size}bp.tsv"
+    if not candidates_path.exists():
+        log.info("minimap2 candidates not found — running without gradient features")
+        return pd.DataFrame()
+
+    cands = pd.read_csv(candidates_path, sep="\t")
+    log.info("Loaded %d minimap2 candidates (scheme %s, %dbp)", len(cands), scheme, window_size)
+    return cands
+
+
+def _overlap_minimap2(
+    meta_row,
+    mm_cands: pd.DataFrame,
+) -> dict:
+    """Find the best-overlapping minimap2 candidate for a NUCmer marker."""
+    contig  = meta_row["contig"]
+    m_start = int(meta_row["start"])
+    m_end   = int(meta_row["end"])
+
+    overlap = mm_cands[
+        (mm_cands["contig"]        == contig) &
+        (mm_cands["region_start"]  <  m_end) &
+        (mm_cands["region_end"]    >  m_start)
+    ]
+
+    if overlap.empty:
+        return {
+            "mean_divergence":          0.0,
+            "flank_conservation_2000bp": 0.5,
+            "marker_score_2000bp":       0.0,
+            "proportion_high_windows":   0.0,
+            "proportion_mid_windows":    0.0,
+        }
+
+    # Pick candidate with maximum overlap
+    best = overlap.iloc[
+        ((overlap["region_end"].clip(upper=m_end) -
+          overlap["region_start"].clip(lower=m_start)).argmax())
+    ]
+    return {
+        "mean_divergence":           float(best.get("mean_divergence", 0.0)),
+        "flank_conservation_2000bp": float(best.get("flank_conservation_2000bp", 0.5)),
+        "marker_score_2000bp":       float(best.get("marker_score_2000bp", 0.0)),
+        "proportion_high_windows":   float(best.get("proportion_high_windows", 0.0)),
+        "proportion_mid_windows":    float(best.get("proportion_mid_windows", 0.0)),
+    }
+
+
 def build_feature_matrix(
     meta: pd.DataFrame,
     blast_df: pd.DataFrame,
@@ -539,6 +594,8 @@ def build_feature_matrix(
     anvio_scores: pd.DataFrame,
     cog_scores: pd.DataFrame,
 ) -> pd.DataFrame:
+    mm_cands = load_minimap2_features(scheme="A", window_size=500)
+    has_minimap2 = not mm_cands.empty
     rows = []
     for _, m in meta.iterrows():
         contig = m["contig"]
@@ -567,6 +624,14 @@ def build_feature_matrix(
         cog_score = float(cog_scores.loc[mid, "cog_enrichment_score"]) \
             if mid in cog_scores.index else 0.0
 
+        mm_feats = _overlap_minimap2(m, mm_cands) if has_minimap2 else {
+            "mean_divergence":           0.0,
+            "flank_conservation_2000bp": 0.5,
+            "marker_score_2000bp":       0.0,
+            "proportion_high_windows":   0.0,
+            "proportion_mid_windows":    0.0,
+        }
+
         rows.append({
             "marker_id":               mid,
             "contig":                  contig,
@@ -582,6 +647,7 @@ def build_feature_matrix(
             "pangenome_score":         pan_score,
             "anvio_cluster_score":     anvio_score,
             "cog_enrichment_score":    cog_score,
+            **mm_feats,
             "tier_encoded":            TIER_ENCODING[tier],
             "label":                   1 if tier == "DIVERGED" else 0,
         })
@@ -597,11 +663,34 @@ FEATURE_COLS = [
     "kmer_deviation",
     "presence_pathogenic", "presence_non_pathogenic", "pangenome_score",
     "anvio_cluster_score",
+    # minimap2 divergence gradient features (branch: minimap2-gradient)
+    # populated when data/results/minimap2/candidates_schemeA_500bp.tsv exists
+    "mean_divergence", "flank_conservation_2000bp", "marker_score_2000bp",
+    "proportion_high_windows", "proportion_mid_windows",
+]
+
+# Features always present (NUCmer pipeline); minimap2 features are optional
+_CORE_FEATURES = [
+    "blastn_identity", "cai_score", "gc_delta",
+    "srna_density", "align_coverage",
+    "kmer_deviation",
+    "presence_pathogenic", "presence_non_pathogenic", "pangenome_score",
+    "anvio_cluster_score",
 ]
 
 
 def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
-    X = df[FEATURE_COLS].values
+    # Use all FEATURE_COLS that are actually populated (minimap2 cols may be zeros)
+    available = [c for c in FEATURE_COLS if c in df.columns and df[c].notna().all()]
+    # Drop minimap2 features if all zero (pipeline ran without 02b)
+    mm_cols = ["mean_divergence", "flank_conservation_2000bp", "marker_score_2000bp",
+                "proportion_high_windows", "proportion_mid_windows"]
+    has_mm = any(df.get(c, pd.Series([0])).sum() > 0 for c in mm_cols)
+    if not has_mm:
+        available = [c for c in available if c not in mm_cols]
+    log.info("Training with %d features%s", len(available),
+             " (+ minimap2 gradient features)" if has_mm else "")
+    X = df[available].values
     y = df["label"].values
     # Group by contig so markers from the same Sakai genomic region never
     # appear in both train and test — prevents spatial-autocorrelation leakage.
