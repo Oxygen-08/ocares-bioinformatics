@@ -99,13 +99,21 @@ Unaligned windows received `divergence_score = 1.0`.
 flank_conservation = 1 − mean(divergence of flanking windows)
 ```
 
-A composite marker score was defined:
+A composite marker score was used to rank all candidate regions:
 
 ```
 marker_score = mean_divergence × flank_conservation × log1p(region_length)
 ```
 
-This score rewards regions that are (1) highly divergent, (2) embedded in conserved genomic context (consistent with HGT island insertion), and (3) long (reducing the probability of artefactual alignment gaps).
+Each multiplicative term captures an independent quality signal:
+
+| Term | What it measures | Rationale |
+|------|-----------------|-----------|
+| `mean_divergence` | Average absence/divergence from all 30 commensals (0–1) | Core signal — how pathogen-specific the region is |
+| `flank_conservation` | Conservation of the 2 kb flanking sequence (0–1) | Regions embedded in conserved DNA are more likely genuine HGT insertions than alignment artefacts in repetitive or poorly assembled loci |
+| `log1p(region_length)` | Length bonus with diminishing returns | Longer blocks are harder to explain by chance gaps; log-scaling prevents large regions from dominating rankings disproportionately |
+
+`mean_divergence` alone cannot distinguish a genuine pathogenicity island from a noisy alignment window in a repeat region — both return high scores. The `flank_conservation` term corrects for this: if the surrounding 2 kb is shared between pathogen and commensal, the divergent block inside is structurally consistent with horizontal gene transfer (a foreign insert within an otherwise conserved genomic neighbourhood). The log-length term ensures that a 6.5 kb block (log₁₊(6500) ≈ 8.78) ranks above a minimal 500 bp hit (log₁₊(500) ≈ 6.22) when both have identical divergence and flank conservation, reflecting greater biological confidence in longer contiguous signals. The 415 candidate markers passed this composite ranking after NUCmer-based cross-validation; higher-scoring markers were prioritised in downstream biological validation.
 
 ### 3.3 Negative Controls
 
