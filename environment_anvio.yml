@@ -1,0 +1,40 @@
+name: anvio8
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+
+  # ── Anvi'o core ───────────────────────────────────────────────────────────────
+  - anvio-minimal=8            # Step 07: pangenome construction and display
+
+  # ── Protein clustering and annotation (called internally by Anvi'o) ──────────
+  - diamond=2.1.10             # DIAMOND blastp for gene cluster construction
+  - mcl=22.282                 # Markov Cluster Algorithm (inflation=10, minbit=0.8)
+  - hmmer=3.4                  # HMM profile search for COG14 annotation
+  - prodigal=2.6.3             # Gene calling on contigs databases
+
+  # ── Multiple sequence alignment ───────────────────────────────────────────────
+  - muscle=3.8.1551            # MSA for phylogenetic tree in pangenome display
+
+  # ── R + Bioconductor (Anvi'o enrichment analysis) ────────────────────────────
+  - r-base=4.1.3
+  - r-optparse=1.7.3
+  - r-tidyverse=1.3.2
+  - bioconductor-qvalue=2.26.0  # FDR correction for COG14 enrichment scores
+
+  # ── Python scientific stack ────────────────────────────────────────────────────
+  - numpy=1.24.0
+  - pandas=1.4.4
+  - biopython=1.78
+  - matplotlib-base=3.10.0
+  - scipy=1.15.2
+
+# ── Usage ────────────────────────────────────────────────────────────────────────
+# Create:  conda env create -f environment_anvio.yml
+# Activate: conda activate anvio8
+# Run:      bash scripts/analysis/07_pangenome_anvio.sh
+#
+# This environment is ONLY required for Step 07 (Anvi'o pangenome).
+# All other pipeline steps use the fp_pipeline environment (environment.yml).
