@@ -755,10 +755,10 @@ def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
 
 def compute_shap(clf: xgb.XGBClassifier, df: pd.DataFrame) -> None:
     X = df[FEATURE_COLS].values
-    explainer  = shap.TreeExplainer(clf)
-    shap_vals  = explainer.shap_values(X)
+    explainer = shap.TreeExplainer(clf)
+    shap_vals = explainer.shap_values(X)
 
-    # Summary beeswarm plot
+    # Single model summary plot
     plt.figure(figsize=(8, 5))
     shap.summary_plot(shap_vals, X, feature_names=FEATURE_COLS, show=False)
     plt.title("SHAP Feature Importance — Tiered Marker Classifier")
@@ -771,6 +771,63 @@ def compute_shap(clf: xgb.XGBClassifier, df: pd.DataFrame) -> None:
     shap_df = pd.DataFrame(shap_vals, columns=FEATURE_COLS)
     shap_df["marker_id"] = df["marker_id"].values
     shap_df.to_csv(ML_DIR / "shap_values.tsv", sep="\t", index=False)
+
+
+def compute_shap_comparison(df: pd.DataFrame) -> None:
+    """Side-by-side SHAP beeswarm: Core-10 vs Combined-15.
+    Trains both models on full data and plots mean |SHAP| bar charts for comparison.
+    Shows which features drive decisions and whether gradient features add novel signal.
+    """
+    import numpy as np
+
+    mm_cols   = ["mean_divergence", "flank_conservation_2000bp", "marker_score_2000bp",
+                 "proportion_high_windows", "proportion_mid_windows"]
+    core_cols = [c for c in FEATURE_COLS if c in df.columns and c not in mm_cols]
+    all_cols  = [c for c in FEATURE_COLS if c in df.columns]
+
+    y = df["label"].values
+    n_neg = (y == 0).sum(); n_pos = y.sum()
+    spw = n_neg / max(n_pos, 1)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    for ax, (label, feats) in zip(axes, [
+        ("Core 10 features\n(NUCmer baseline)  AUROC 0.717", core_cols),
+        ("Combined 15 features\n(+ gradient)  AUROC 0.709",  all_cols),
+    ]):
+        clf = xgb.XGBClassifier(
+            n_estimators=200, max_depth=4, learning_rate=0.05,
+            subsample=0.8, colsample_bytree=0.8,
+            scale_pos_weight=spw, eval_metric="aucpr",
+            random_state=42, verbosity=0,
+        )
+        clf.fit(df[feats].values, y)
+        exp  = shap.TreeExplainer(clf)
+        sv   = exp.shap_values(df[feats].values)
+        mean_abs = np.abs(sv).mean(axis=0)
+        order = np.argsort(mean_abs)
+
+        ax.barh(range(len(feats)), mean_abs[order],
+                color=["#e07b54" if f in mm_cols else "#4c8bbf" for f in [feats[i] for i in order]])
+        ax.set_yticks(range(len(feats)))
+        ax.set_yticklabels([feats[i] for i in order], fontsize=8)
+        ax.set_xlabel("Mean |SHAP value|")
+        ax.set_title(label, fontsize=9, pad=8)
+
+    # Legend
+    from matplotlib.patches import Patch
+    fig.legend(handles=[
+        Patch(color="#4c8bbf", label="NUCmer / compositional features"),
+        Patch(color="#e07b54", label="minimap2 gradient features"),
+    ], loc="lower center", ncol=2, fontsize=8, bbox_to_anchor=(0.5, -0.02))
+
+    fig.suptitle("SHAP Feature Importance Comparison\nCore-10 vs Combined-15 (minimap2-gradient branch)",
+                 fontsize=10, y=1.01)
+    plt.tight_layout()
+    out = VIZ_DIR / "shap_comparison_core10_vs_combined15.png"
+    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close()
+    log.info("SHAP comparison plot saved: %s", out)
 
 
 def run_ablation(df: pd.DataFrame, mode: str) -> None:
@@ -880,6 +937,7 @@ def main() -> None:
 
     clf = train_and_evaluate(df)
     compute_shap(clf, df)
+    compute_shap_comparison(df)
 
     log.info("ML pipeline complete. Outputs in %s", ML_DIR)
 
