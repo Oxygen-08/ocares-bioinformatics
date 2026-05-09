@@ -7,8 +7,9 @@ dependencies:
   - python=3.11
 
   # ── Alignment & comparative genomics (CLI tools) ───────────────────────────
-  - mummer4>=4.0.0         # Steps 02-03: NUCmer tiered alignment
-  - blast>=2.16.0          # Step 04: BLAST marker screen
+  - mummer4>=4.0.0         # Steps 02-03: NUCmer tiered alignment (retained)
+  - minimap2>=2.28         # Step 02b: minimap2 divergence gradient pipeline
+  - blast>=2.16.0          # Step 05: BLAST marker screen
   - bedtools>=2.31.0       # Step 03: coordinate operations
 
   # ── Genome acquisition ─────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ dependencies:
   - seaborn>=0.13
 
   # ── Machine learning ───────────────────────────────────────────────────────
-  - scikit-learn>=1.4      # Step 06: StratifiedKFold, ROC/PR metrics
+  - scikit-learn>=1.4      # Step 06: StratifiedGroupKFold, ROC/PR metrics
   - xgboost>=2.0           # Step 06: XGBoost classifier
   - shap>=0.45             # Step 06: SHAP feature importance
 
