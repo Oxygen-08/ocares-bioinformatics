@@ -16,8 +16,8 @@ bioinformatics/
 │   ├── 01_download_genomes.py
 │   ├── 02_nucmer_tiered.py
 │   ├── 03_extract_markers.py
-│   ├── 04_blast_screen.py
-│   ├── 05_simulate_metagenome.py
+│   ├── 04_simulate_metagenome.py
+│   ├── 05_blast_screen.py
 │   ├── 06_ml_classifier.py
 │   ├── 07_pangenome_anvio.sh   # Anvi'o only — separate env (see below)
 │   ├── 08_bio_sanity.py

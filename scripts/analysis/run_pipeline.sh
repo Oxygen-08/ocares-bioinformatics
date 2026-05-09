@@ -8,15 +8,15 @@
 #
 # Options:
 #   --skip-download    Skip Step 01 (genome download) if genomes already present
-#   --skip-simulate    Skip Step 05 (InSilicoSeq simulation) if reads exist
+#   --skip-simulate    Skip Step 04 (InSilicoSeq simulation) if reads exist
 #   --skip-plots       Skip figure generation (Steps 08, plot_*)
 #
 # Full pipeline steps:
 #   01  Download E. coli reference genomes from NCBI RefSeq
 #   02  NUCmer tiered alignment (CONSERVED / MODERATE / DIVERGED)
 #   03  Extract discriminatory marker sequences (415 markers)
-#   04  BLAST screen markers against simulated metagenome
-#   05  Simulate metagenomic community (InSilicoSeq 2.0)
+#   04  Simulate metagenomic community (InSilicoSeq 2.0)
+#   05  BLAST screen markers against simulated metagenome
 #   06  XGBoost ML classifier + SHAP explainability
 #   08  Biological sanity checks (K-12 absence, virulence locus overlap)
 #   P1  Alignment landscape figure
@@ -61,10 +61,10 @@ log "Step 02 — NUCmer tiered alignment"
 log "Step 03 — Extract discriminatory markers"
 "${PYTHON}" "${SCRIPTS}/03_extract_markers.py"
 
-$SKIP_SIMULATE || { log "Step 05 — Simulate metagenome (InSilicoSeq)"; "${PYTHON}" "${SCRIPTS}/05_simulate_metagenome.py"; }
+$SKIP_SIMULATE || { log "Step 04 — Simulate metagenome (InSilicoSeq)"; "${PYTHON}" "${SCRIPTS}/04_simulate_metagenome.py"; }
 
-log "Step 04 — BLAST screen"
-"${PYTHON}" "${SCRIPTS}/04_blast_screen.py"
+log "Step 05 — BLAST screen"
+"${PYTHON}" "${SCRIPTS}/05_blast_screen.py"
 
 log "Step 06 — ML classifier (XGBoost + SHAP)"
 "${PYTHON}" "${SCRIPTS}/06_ml_classifier.py"
