@@ -17,14 +17,16 @@
 #   03  Extract discriminatory marker sequences (415 markers)
 #   04  Simulate metagenomic community (InSilicoSeq 2.0)
 #   05  BLAST screen markers against simulated metagenome
-#   06  XGBoost ML classifier + SHAP explainability
+#   07  XGBoost ML classifier + SHAP explainability
 #   08  Biological sanity checks (K-12 absence, virulence locus overlap)
 #   P1  Alignment landscape figure
 #   P2  ML result figures (ROC, confusion matrix, feature correlation)
 #   P3  Pangenome figures (composition, enrichment, heatmap)
 #
-# NOTE: Step 07 (Anvi'o pangenome) runs in a separate conda environment.
-#       See scripts/analysis/07_pangenome_anvio.sh and README.md.
+# NOTE: Step 06 (Anvi'o pangenome) runs in a separate conda environment
+#       and MUST be completed before Step 07 (ML classifier), because
+#       07_ml_classifier.py reads anvio_cluster_score from Anvi'o output.
+#       See scripts/analysis/06_pangenome_anvio.sh and README.md.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -66,8 +68,8 @@ $SKIP_SIMULATE || { log "Step 04 — Simulate metagenome (InSilicoSeq)"; "${PYTH
 log "Step 05 — BLAST screen"
 "${PYTHON}" "${SCRIPTS}/05_blast_screen.py"
 
-log "Step 06 — ML classifier (XGBoost + SHAP)"
-"${PYTHON}" "${SCRIPTS}/06_ml_classifier.py"
+log "Step 07 — ML classifier (XGBoost + SHAP)"
+"${PYTHON}" "${SCRIPTS}/07_ml_classifier.py"
 
 log "Step 08 — Biological sanity checks"
 "${PYTHON}" "${SCRIPTS}/08_bio_sanity.py"
@@ -83,4 +85,4 @@ fi
 
 log ""
 log "=== Pipeline complete. Results: ${REPO_ROOT}/data/results/ ==="
-log "    Step 07 (Anvi'o pangenome): run separately — see README.md"
+log "    Step 06 (Anvi'o pangenome): run separately in anvio8 env BEFORE Step 07 — see README.md"
