@@ -204,7 +204,15 @@ The four-scheme sensitivity analysis establishes that the primary results are no
 
 ### 5.3 Limitations
 
-The three-gradient system is not assumed universal. Thresholds that work for intra-*E. coli* O157:H7 vs. commensal comparison may not transfer to more divergent species pairs or different pathotypes. The `asm5` minimap2 preset is optimised for <5% sequence divergence; pairs exceeding this range may require `asm10`. The marker score composite has not been externally validated; it is an operational heuristic requiring prospective testing.
+**Threshold generalisability.** The three-gradient system is not assumed universal. Thresholds that work for intra-*E. coli* O157:H7 vs. commensal comparison may not transfer to more divergent species pairs or different pathotypes. The empirical tertile scheme (D) provides a fully non-parametric comparison, but tertile boundaries are dataset-specific and will shift with a different commensal panel.
+
+**minimap2 preset scope.** The `asm5` preset is optimised for <5% sequence divergence between assemblies. Intra-*E. coli* O157:H7 vs. commensal comparison is within this range for most of the genome; however, highly diverged regions (true PAIs) may have local divergence exceeding 5%, where `asm5` may produce fragmented alignments. The effect is conservative — fragmented alignments lower coverage fraction and raise divergence score, biasing toward more HIGH calls rather than fewer. The direction of any bias is therefore consistent with PAI detection rather than against it.
+
+**Negative control panel size.** The pathogen-vs-pathogen negative control used five strains (EDL933, TW14359, EC4115, O26:H11, O103:H2), all EHEC or closely related STEC. This panel does not cover UPEC, ETEC, or EPEC pathotypes. The 10.9× enrichment is robust for the EHEC comparison; cross-pathotype generalisability of the negative control remains to be tested.
+
+**Cross-validation grouping.** The 500 kb genomic bin grouping prevents spatial autocorrelation leakage within the chromosome but is an approximation. Markers separated by less than 500 kb on different sides of a bin boundary can still share NUCmer alignment context. A more conservative approach would use larger bins or leave-one-contig-out CV, at the cost of fewer test samples per fold given the three-contig Sakai genome structure.
+
+**Marker score composite.** The `marker_score = mean_divergence × flank_conservation × log1p(region_length)` composite has not been externally validated. It is an operational heuristic rewarding three independently motivated properties; the multiplicative combination and log-length scaling are design choices that require prospective validation against experimentally confirmed PAIs.
 
 ---
 
