@@ -18,8 +18,8 @@ bioinformatics/
 │   ├── 03_extract_markers.py
 │   ├── 04_simulate_metagenome.py
 │   ├── 05_blast_screen.py
-│   ├── 06_ml_classifier.py
-│   ├── 07_pangenome_anvio.sh   # Anvi'o only — separate env (see below)
+│   ├── 06_pangenome_anvio.sh   # Anvi'o only — separate env, run BEFORE step 07
+│   ├── 07_ml_classifier.py     # Requires Anvi'o output from step 06
 │   ├── 08_bio_sanity.py
 │   ├── plot_alignment_landscape.py
 │   ├── plot_results.py
@@ -55,11 +55,16 @@ Two conda environments are required — the main pipeline and Anvi'o (which has 
 conda env create -f environment.yml
 conda activate fp_pipeline
 
-# 2. Anvi'o environment (Step 07 only) — pinned versions
+# 2. Anvi'o environment (Step 06 only) — pinned versions
 conda env create -f environment_anvio.yml
 ```
 
-### Run Steps 01–06, 08 and all figures
+### Execution order
+
+Step 06 (Anvi'o pangenome) must complete **before** Step 07 (ML classifier), because
+`07_ml_classifier.py` reads `anvio_cluster_score` from the Anvi'o pangenome output.
+
+**1. Run steps 01–05, 07–08 and all figures** (fp_pipeline env):
 
 ```bash
 conda activate fp_pipeline
@@ -73,11 +78,11 @@ Options:
 --skip-plots       Skip figure generation
 ```
 
-### Run Step 07 — Anvi'o Pangenome (separate environment)
+**2. Run Step 06 — Anvi'o Pangenome** (separate environment, run first):
 
 ```bash
 conda activate anvio8
-bash scripts/analysis/07_pangenome_anvio.sh
+bash scripts/analysis/06_pangenome_anvio.sh
 ```
 
 This step requires ~4–6 hours on a modern laptop. Outputs are written to `data/results/pangenome/`.

@@ -9,7 +9,7 @@
 
 ## Abstract
 
-This thesis presents a hybrid computational framework combining pangenomic analysis with sequence-based screening and machine learning to reduce false positive identifications of pathogenic bacteria in metagenomic data. Comparative genomic analysis of *E. coli* O157:H7 Sakai against 45 commensal and pathogenic strains yielded 17,519 NUCmer alignment blocks, from which 415 candidate pathogenicity markers were extracted across three identity tiers: Conserved (≥95%), Moderately Diverged (85–94.9%), and Highly Diverged (<85%). A 10-feature XGBoost classifier — incorporating sequence identity, codon adaptation index, GC content delta, sRNA binding site density, alignment coverage, 4-mer compositional deviation, and three Anvi'o/NUCmer-derived pangenome scores — achieved AUROC 0.673 ± 0.063, substantially exceeding the BLAST screen baseline of 0.552. Biological validation confirmed that 49.5% of DIVERGED-tier markers are absent from all K-12 strains, and 14 markers co-localise with named *E. coli* O157:H7 virulence loci including the LEE pathogenicity island, Shiga toxin-converting prophages SpLE2 and SpLE3, and the OI-48 type III secretion locus. The framework's primary novel contribution is the simultaneous interrogation of compositional foreignness (4-mer deviation), translational adaptation (CAI), post-transcriptional regulatory architecture (sRNA density), and population-level pangenome context — four orthogonal lenses querying a single binary classification target. No published metagenomics tool combines this multi-modal feature geometry. The work constitutes a proof of concept for sequence-informed pathogenicity inference that extends beyond alignment identity, with a clear extension path toward regulatory network-informed classification using graph neural networks.
+This thesis presents a hybrid computational framework combining pangenomic analysis with sequence-based screening and machine learning to reduce false positive identifications of pathogenic bacteria in metagenomic data. Comparative genomic analysis of *E. coli* O157:H7 Sakai against 45 commensal and pathogenic strains yielded 17,519 NUCmer alignment blocks, from which 415 candidate pathogenicity markers were extracted across three identity tiers: Conserved (≥95%), Moderately Diverged (85–94.9%), and Highly Diverged (<85%). A 10-feature XGBoost classifier — incorporating sequence identity, codon adaptation index, GC content delta, sRNA binding site density, alignment coverage, 4-mer compositional deviation, and four NUCmer/Anvi'o-derived pangenome features — achieved AUROC 0.673 ± 0.063, substantially exceeding the BLAST screen baseline of 0.552. Biological validation confirmed that 49.5% of DIVERGED-tier markers are absent from all K-12 strains, and 14 markers co-localise with named *E. coli* O157:H7 virulence loci including the LEE pathogenicity island, Shiga toxin-converting prophages SpLE2 and SpLE3, and the OI-48 type III secretion locus. The framework's primary novel contribution is the simultaneous interrogation of compositional foreignness (4-mer deviation), translational adaptation (CAI), post-transcriptional regulatory architecture (sRNA density), and population-level pangenome context — five feature layers querying a single binary classification target. No published metagenomics tool combines this multi-modal feature geometry. The work constitutes a proof of concept for sequence-informed pathogenicity inference that extends beyond alignment identity, with a clear extension path toward regulatory network-informed classification using graph neural networks.
 
 ---
 
@@ -93,7 +93,7 @@ The limitations of single-strategy approaches have driven the development of int
 
 Arango-Argoty et al. (2018) developed DeepARG, which uses deep learning to predict antimicrobial resistance genes in metagenomics by modelling the distribution of sequence alignments rather than applying fixed identity cutoffs. Their approach directly addresses the false positive problem in functional gene annotation by learning alignment pattern signatures that distinguish true from spurious homology — a conceptual parallel to the ML component of the present framework applied to virulence markers.
 
-These studies collectively support a framework architecture in which comparative genomics provides the initial candidate set, pan-genomics provides population-level validation, and machine learning provides the classification model. The present thesis operationalises this architecture for the specific problem of *E. coli* O157:H7 detection in complex metagenomic communities, and extends it with a feature geometry that spans four orthogonal biological layers: compositional, translational, regulatory, and population-level pangenome.
+These studies collectively support a framework architecture in which comparative genomics provides the initial candidate set, pan-genomics provides population-level validation, and machine learning provides the classification model. The present thesis operationalises this architecture for the specific problem of *E. coli* O157:H7 detection in complex metagenomic communities, and extends it with a feature geometry that spans five biological layers: alignment identity, compositional, translational, regulatory, and population-level pangenome.
 
 ### 2.7 Summary
 
@@ -115,10 +115,10 @@ All analyses were performed on a local development environment (macOS, Conda-man
 
 Complete genome assemblies for *E. coli* strains were retrieved from NCBI RefSeq using the `ncbi-genome-download` utility. Strain curation followed three criteria: (i) assembly level ≥ complete or chromosome; (ii) pathogenic status confirmed against published literature and BioSample metadata; (iii) sufficient metadata to assign a clear pathotype (EHEC, EPEC, UPEC, commensal).
 
-The final dataset comprises 46 curated genomes (23 pathogenic, 23 commensal/non-pathogenic), including:
+The planned dataset comprised 60 curated genomes (30 pathogenic, 30 non-pathogenic). Of these, 46 genomes (27 pathogenic, 19 non-pathogenic) were successfully obtained from NCBI RefSeq and analysed; 14 strains failed to resolve to complete assemblies in the initial download. Replacement strains with confirmed complete RefSeq assemblies have since been identified (GCF accessions provided in `data/genomes/genome_manifest.tsv`) and will be incorporated in the subsequent expanded analysis. All results reported in this thesis are based on the 46-genome set. The panel includes:
 - **Primary reference:** *E. coli* O157:H7 Sakai (GenBank: BA000007.3), the best-annotated EHEC genome with documented O-island coordinates and sRNA atlas
-- **Primary comparison:** *E. coli* SE11 (commensal, GenBank: AP009240.1), previously used in published pairwise comparisons with O157:H7
-- **Extended panel (44 strains):** EHEC O157:H7 isolates (EDL933, EC4115, EC869), STEC O111/O103/O145 strains, EPEC E2348/69, UPEC CFT073/UTI89, enterotoxigenic ETEC isolates, and commensal/laboratory K-12 strains (MG1655, DH10B, W3110)
+- **Close-relative challenge strain:** *E. coli* SE11 (EPEC pathotype, GenBank: AP009240.1), included as a deliberate specificity challenge — it shares O-island architecture with O157:H7 but lacks Shiga toxin genes
+- **Extended panel (44 strains):** EHEC O157:H7 isolates (EDL933, EC4115, TW14359), non-O157 STEC (O26, O103, O111, O145, O104), EPEC E2348/69, UPEC CFT073/UTI89/536, enterotoxigenic ETEC isolates, AIEC LF82/UM146, and commensal/laboratory K-12 strains (MG1655, DH10B, W3110)
 
 NUCmer comparative analysis used all 45 non-Sakai strains as query genomes against the Sakai reference, producing the full alignment landscape from which markers were extracted.
 
@@ -166,13 +166,13 @@ The BLAST screen's low sensitivity (17.4%) reflects the fundamental limitation o
 
 ### 3.4 Metagenomic Simulation
 
-A synthetic metagenomic community was constructed using InSilicoSeq 2.0 (Gourlé et al., 2024) with a NovaSeq HS25 151 bp paired-end error model. Three community compositions were simulated to stress-test performance across ecological conditions:
+A synthetic metagenomic community was constructed using InSilicoSeq 2.0 (Gourlé et al., 2024) with an Illumina HiSeq 2500 paired-end error model (InSilicoSeq `--model HiSeq`). Three community compositions were simulated to stress-test performance across detection thresholds:
 
-- **EHEC-dominant:** O157:H7 Sakai 60%, commensal *E. coli* 30%, background gut flora 10%
-- **Balanced:** O157:H7 Sakai 30%, commensal *E. coli* IAI1 40%, other *E. coli* 30%
-- **Commensal-dominant:** O157:H7 Sakai 10%, commensal *E. coli* 70%, background gut flora 20%
+- **High spike:** O157:H7 Sakai 10%, SE11 25%, K-12 MG1655 25%, Nissle 1917 20%, HS + IAI1 20%
+- **Mid spike:** O157:H7 Sakai 5%, SE11 28%, K-12 MG1655 28%, Nissle 1917 19%, HS + IAI1 20%
+- **Low spike:** O157:H7 Sakai 1%, SE11 30%, K-12 MG1655 30%, Nissle 1917 20%, HS + IAI1 19%
 
-Total: 750,000 150 bp reads per community. The commensal-dominant condition was the primary evaluation scenario, as it most closely approximates the clinical false positive problem: a low-abundance pathogen embedded in a community of highly similar commensals.
+Total: 500,000 read pairs per community. The low-spike condition was the primary evaluation scenario, as it most closely approximates the clinical false positive problem: a low-abundance pathogen (1%) embedded in a community of highly similar close-relative strains (SE11, Nissle 1917).
 
 ### 3.5 Pangenome Construction
 
@@ -194,7 +194,7 @@ Score range observed: −0.133 to +0.567. A positive score indicates that the ge
 
 ### 3.6 Feature Extraction — The 10-Feature Multi-Modal Vector
 
-The central technical contribution of this thesis is a 10-dimensional feature vector that simultaneously interrogates four orthogonal biological properties of each genomic marker. The rationale for each feature dimension is as follows:
+The central technical contribution of this thesis is a 10-dimensional feature vector that simultaneously interrogates five complementary biological layers for each genomic marker. The rationale for each feature dimension is as follows:
 
 #### Layer 1: Sequence Identity (the baseline signal)
 
@@ -238,8 +238,8 @@ The sRNA density feature therefore asks: does this genomic region's sequence car
 
 | Feature | Description |
 |---------|-------------|
-| `presence_pathogenic` | Fraction of pathogenic strains in the 46-genome panel in which the marker is covered by NUCmer alignments |
-| `presence_non_pathogenic` | Fraction of commensal strains in the 46-genome panel covered by NUCmer alignments |
+| `presence_pathogenic` | Fraction of pathogenic strains in the 46-genome analysis set (27 pathogenic) in which the marker is covered by NUCmer alignments |
+| `presence_non_pathogenic` | Fraction of non-pathogenic strains in the 46-genome analysis set (19 non-pathogenic) covered by NUCmer alignments |
 | `pangenome_score` | `presence_pathogenic − presence_non_pathogenic`; a net lineage-specificity score (range −0.243 to +0.615) |
 | `anvio_cluster_score` | Mean differential gene cluster presence (pathogenic − commensal fraction) for Anvi'o clusters overlapping the marker (range −0.133 to +0.567) |
 
@@ -356,9 +356,9 @@ In the comparative genomic exploration of pathogenic versus non-pathogenic *E. c
 
 To bridge this gap, this thesis introduces a tiered identity classification system, categorising alignment blocks into three biologically meaningful strata: Conserved (≥95% identity), Moderately Diverged (85–94.9%), and Highly Diverged (<85%). This stratification acknowledges that molecular function often persists across homologous sequences that are not perfectly conserved. It allows distinction between sequences that are completely unique and those that are ancestrally shared but have undergone adaptive divergence.
 
-This approach rejects strict binarism in favour of a gradient view of genomic similarity, recognising that sequence divergence exists on a continuum. This continuum maps not only to evolutionary time but also to functional differentiation. Two homologous genes may encode structurally similar proteins yet differ in expression timing, host specificity, or regulatory responsiveness. Such differences can underlie the transition from commensalism to pathogenicity — a phenomenon well documented in horizontally acquired virulence loci such as the LEE pathogenicity island (McDaniel et al., 1995) and Shiga toxin genes (Mead & Griffin, 1998).
+The tiered identity classification reflects a quantitative observation: alignment identity between closely related genomes is not binary but continuously distributed. The 85% and 95% thresholds used here correspond to empirically motivated breaks in the distribution of pairwise divergence (Treangen & Rocha, 2011) rather than arbitrary cutoffs. Genomic islands acquired by horizontal gene transfer show systematically lower identity to the host core genome, and this signal intensifies over evolutionary time through amelioration (Lawrence & Ochman, 1997). The DIVERGED tier therefore enriches for recently acquired, compositionally foreign loci — precisely the class of elements most likely to encode novel pathogenic functions. This empirical grounding in the population genetics of horizontal gene transfer is what distinguishes the tiered framework from a simple identity filter.
 
-This framework builds on published methods that use alignment identity thresholds to infer phylogenetic relationships (Treangen & Rocha, 2011; Darling et al., 2004) or detect strain-specific insertions (Zhou et al., 2010). Unlike those studies, which typically filter out sub-95% matches entirely, this framework retains and classifies them to expose signals of functional adaptation that would otherwise be discarded as noise — directly addressing the critique raised by Langille & Brinkman (2009) that "comparative pipelines frequently discard biologically meaningful sequence variation as noise."
+This framework builds on published methods that use alignment identity thresholds to infer phylogenetic relationships (Treangen & Rocha, 2011; Darling et al., 2004) or detect strain-specific insertions (Zhou et al., 2010). Unlike those studies, which typically filter out sub-95% matches entirely, this framework retains and classifies them to expose signals of functional adaptation that would otherwise be discarded as noise — a limitation noted in the broader comparative genomics literature on the challenge of discriminating biologically meaningful divergence from background variation (Langille & Brinkman, 2009).
 
 ### 5.2 The Multi-Modal Synthesis — Something Not Previously Assembled
 
@@ -391,7 +391,7 @@ The present framework does not resolve this problem — no purely genomic approa
 
 **Sample size:** 415 markers and 10 features in a 5-fold cross-validation setting is a small training set by deep learning standards. The choice of XGBoost over neural approaches was deliberate: tree ensemble methods are generally more robust in small-sample, tabular feature regimes and provide interpretable SHAP values. As metagenomics datasets expand, the feature geometry developed here could serve as the input layer for deeper architectures.
 
-**Simulated reads:** The evaluation community was constructed from InSilicoSeq 2.0 simulations rather than real clinical samples. While InSilicoSeq's NovaSeq error model is well-validated, simulated communities cannot fully capture the read depth variation, chimeric reads, and non-uniform coverage of real metagenomes. Validation against clinical surveillance samples is the next empirical step.
+**Simulated reads:** The evaluation community was constructed from InSilicoSeq 2.0 simulations (HiSeq 2500 error model) rather than real clinical samples. Simulated communities cannot fully capture the read depth variation, chimeric reads, and non-uniform coverage of real metagenomes. Validation against clinical surveillance samples is the next empirical step.
 
 **COG enrichment sparsity:** The Anvi'o COG14 enrichment analysis identified only 53 significantly enriched gene clusters out of 12,204 — 0.4% of the pangenome. This sparsity means the COG enrichment score, when computed per-marker, is zero for the majority of markers. Testing it as an 11th feature reduced model F1 from 0.408 to 0.359, confirming that sparse features with many zero values confuse tree-based classifiers by creating artificial splits. This is not a failure of the biological hypothesis — pathogen-enriched functions genuinely cluster in few gene families — but a signal that sparse indicator features require different encoding (e.g., binary presence of enriched cluster overlap rather than a continuous score).
 
@@ -419,7 +419,7 @@ The most significant limitation of any genomic detection framework is its inabil
 
 The evidence synthesised across this thesis points to a third research question that extends beyond what sequence-level analysis can address: *how do conserved regulatory networks drive pathotype-specific virulence, and can a computational model of those networks improve detection specificity beyond the genomic tier?*
 
-The YhaJ finding (Connolly et al., 2019) is the mechanistic entry point for this question. EHEC O157:H7 harbours 177 O-islands encoding 16 virulence regulatory proteins — activators and repressors that integrate environmental signals (temperature, pH, metabolite availability) into coordinated T3SS deployment (Jiang et al., 2024; Bhatt & Bhatt, 2021). The effector proteins injected by this system operate not as isolated virulence factors but as a robust, interconnected network tolerating up to 60% contraction while maintaining pathogenicity (Deng et al., 2021). A detection framework informed by this network topology — where a pattern of metagenomic reads mapping across the effector regulatory network is more informative than any single gene — would represent a fundamental advance over the present approach.
+The YhaJ finding (Connolly et al., 2019) is the mechanistic entry point for this question. EHEC O157:H7 harbours 177 O-islands encoding 16 virulence regulatory proteins — activators and repressors that integrate environmental signals (temperature, pH, metabolite availability) into coordinated T3SS deployment (Jiang et al., 2024). The effector proteins injected by this system operate not as isolated virulence factors but as a robust, interconnected network tolerating up to 60% contraction while maintaining pathogenicity (Deng et al., 2021). A detection framework informed by this network topology — where a pattern of metagenomic reads mapping across the effector regulatory network is more informative than any single gene — would represent a fundamental advance over the present approach.
 
 The proposed architecture for Project 3 is a heterogeneous graph neural network (GNN) in which nodes represent O-island genes, regulatory proteins, and sRNA loci, and edges represent confirmed regulatory relationships derived from published experimental data (OvrA→Ler→LEE1-5; CsrA→grlRA; Hfq→sRNA targets). Metagenomic read evidence is propagated through this graph, and pathogenicity classification is based on graph-level embeddings rather than individual gene presence. This model has no precedent in the metagenomic false positive literature and constitutes a tractable PhD-level extension of the present master's work.
 
@@ -431,7 +431,6 @@ The 10-feature vector developed in this thesis provides the per-node feature inp
 
 Arango-Argoty, G., Garner, E., Pruden, A., Heath, L. S., Vikesland, P., & Zhang, L. (2018). DeepARG: a deep learning approach for predicting antibiotic resistance genes from metagenomic data. *Microbiome*, 6(1), 23. https://doi.org/10.1186/s40168-018-0401-z
 
-Bhatt, S., & Bhatt, D. L. (2021). Small RNA regulation of virulence in pathogenic *Escherichia coli*. *Frontiers in Cellular and Infection Microbiology*, 10, 622202. https://doi.org/10.3389/fcimb.2020.622202
 
 Blanco-Míguez, A., Beghini, F., Cumbo, F., McIver, L. J., Thompson, K. N., Zolfo, M., ... & Segata, N. (2023). Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4. *Nature Biotechnology*, 41, 1633–1644. https://doi.org/10.1038/s41587-023-01688-w
 

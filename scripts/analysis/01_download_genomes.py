@@ -221,10 +221,11 @@ PATHOGENIC: list[StrainInfo] = [
     StrainInfo("E2348_69",       "Escherichia coli str. E2348/69",
                "EPEC", "LEE,bfpA,eae-alpha,intimin-alpha", 19682371),
 
-    # Grant AJ et al. (2011) PLoS Pathog. EPEC, rabbit model (homologous to human).
-    # NCBI organism name omits "str." prefix.
-    StrainInfo("E22",            "Escherichia coli E22",
-               "EPEC", "LEE,eae,nle-effectors", 21423661),
+    # Pearson GD et al. EPEC O127:H6, confirmed LEE+, bfpA+, intimin-alpha.
+    # Complete genome GCF_018884405.1 verified in RefSeq (replaces E22, no complete assembly).
+    StrainInfo("TW10598",        "Escherichia coli O127:H6 str. TW10598",
+               "EPEC", "LEE,bfpA,eae-alpha,intimin-alpha", 0,
+               gcf="GCF_018884405.1"),
 
     # Zhou Z et al. (2010) PLoS Genet. EPEC, ST131 lineage.
     StrainInfo("SE11",           "Escherichia coli str. SE11",
@@ -246,19 +247,24 @@ PATHOGENIC: list[StrainInfo] = [
     StrainInfo("LF82",           "Escherichia coli str. LF82",
                "AIEC", "fimH-variant,inv,csg,lpfA", 20541499),
 
-    # Martinez-Medina M et al. (2009) Inflamm Bowel Dis. AIEC, IBD mucosa.
-    # NCBI organism name omits "str." prefix.
-    StrainInfo("HM605",          "Escherichia coli HM605",
-               "AIEC", "fimH-variant,lpfA,csgA,htrA", 19253333),
+    # Darfeuille-Michaud A group. AIEC O83:H1, Crohn's disease patient.
+    # NRG 857C: FimH-variant + intracellular replication confirmed.
+    # Complete genome GCF_000183345.1 verified in RefSeq (replaces HM605, no complete assembly).
+    StrainInfo("NRG857C",        "Escherichia coli O83:H1 str. NRG 857C",
+               "AIEC", "fimH-variant,inv,lpfA,htrA,intracellular-replication", 0,
+               gcf="GCF_000183345.1"),
 
     # Lapaquette P et al. (2010) Cell Microbiol. Adherent-invasive, IBD.
     StrainInfo("UM146",          "Escherichia coli str. UM146",
                "AIEC", "fimH-variant,lpfA,intracellular-replication", 20482583),
 
     # ── Supplemental EHEC to reach 30 ────────────────────────────────────────
-    # Iyoda S et al. (2011) FEMS Microbiol Lett. Stx2+, LEE+, O21:NM serogroup.
-    StrainInfo("O21_HC002",      "Escherichia coli O21:NM str. HC002",
-               "EHEC", "stx2,LEE,eae", 21569098),
+    # HUSEC collection (Haemolytic Uraemic Syndrome-causing E. coli, Germany).
+    # stx2+, non-LEE STEC; different serogroup from all other EHEC in the panel.
+    # Complete genome GCF_000967155.2 verified in RefSeq (replaces O21_HC002, no assembly).
+    StrainInfo("HUSEC2011",      "Escherichia coli str. HUSEC2011",
+               "EHEC", "stx2,no-LEE,HUS-associated", 0,
+               gcf="GCF_000967155.2"),
 ]
 
 NON_PATHOGENIC: list[StrainInfo] = [
@@ -311,7 +317,7 @@ NON_PATHOGENIC: list[StrainInfo] = [
     # ── Probiotic / verified commensal ────────────────────────────────────────
     # Reister M et al. (2014) J Biotechnol 187:106. EcN reference genome.
     StrainInfo("Nissle1917",     "Escherichia coli Nissle 1917",
-               "PROBIOTIC", "microcin_B17,H_47_fimbriae,no_stx_no_LEE", 25448246),
+               "PROBIOTIC", "microcin_B17,H_47_fimbriae,no_stx_no_LEE", 25093936),
 
     # Touchon M et al. (2009). Commensal, healthy human faecal isolate.
     StrainInfo("HS",             "Escherichia coli str. HS",
@@ -344,48 +350,16 @@ NON_PATHOGENIC: list[StrainInfo] = [
     StrainInfo("W",              "Escherichia coli str. W",
                "LAB_B", "no_virulence_genes,industrial_fermentation", 21278278),
 
-    # Durfee T et al. (2008). Cloning host, recA-minus.
-    StrainInfo("K12_C2566",      "Escherichia coli K-12 str. C2566",
-               "K12", "no_virulence_genes,recA_minus", 18245128),
-
     # Lukjancenko O et al. (2010) Microb Ecol. Commensal diversity panel.
     StrainInfo("ATCC8739",       "Escherichia coli ATCC 8739",
                "COMMENSAL", "ATCC_type_strain,no_virulence", 20830437),
 
-    # ── Additional K-12 derivatives to complete 30 ───────────────────────────
+    # ── Additional K-12 / B-lineage derivatives — complete RefSeq assemblies ──
     # ATCC type strain — neotype/reference strain for E. coli species, commensal origin.
     # GCF_003697165.2 confirmed via Entrez (Complete Genome, DSM 30083 = ATCC 11775).
     StrainInfo("ATCC11775",      "Escherichia coli DSM 30083 = JCM 1649 = ATCC 11775",
                "COMMENSAL", "type_strain,no_virulence_genes,commensal_origin", 0,
                gcf="GCF_003697165.2"),
-
-    StrainInfo("K12_XL1Blue",    "Escherichia coli K-12 str. XL1-Blue",
-               "K12", "no_virulence_genes,recA1_minus,endA1_minus", 0),
-
-    StrainInfo("K12_DH5alpha",   "Escherichia coli K-12 str. DH5alpha",
-               "K12", "no_virulence_genes,phi80_lacZdeltaM15", 0),
-
-    StrainInfo("K12_HB101",      "Escherichia coli K-12 str. HB101",
-               "K12", "no_virulence_genes,K-12_B_hybrid,recA13", 0),
-
-    StrainInfo("K12_MG1655_LTEE","Escherichia coli K-12 str. MG1655 evolved",
-               "K12", "no_virulence_genes,LTEE_related", 0),
-
-    # Tenaillon O et al. (2010) Science 331:457. ECOR collection strain.
-    StrainInfo("ECOR2",          "Escherichia coli str. ECOR 2",
-               "COMMENSAL", "ECOR_collection,healthy_human", 20007904),
-
-    StrainInfo("ECOR3",          "Escherichia coli str. ECOR 3",
-               "COMMENSAL", "ECOR_collection,healthy_human", 20007904),
-
-    StrainInfo("ECOR5",          "Escherichia coli str. ECOR 5",
-               "COMMENSAL", "ECOR_collection,healthy_human", 20007904),
-
-    StrainInfo("ECOR10",         "Escherichia coli str. ECOR 10",
-               "COMMENSAL", "ECOR_collection,healthy_human", 20007904),
-
-    StrainInfo("ECOR15",         "Escherichia coli str. ECOR 15",
-               "COMMENSAL", "ECOR_collection,healthy_human", 20007904),
 
     # Shelobolina ES et al. (2004) Appl Environ Microbiol. Environmental isolate.
     # NCBI name omits "str." prefix; GCF_000019645.1 confirmed via Entrez.
@@ -393,9 +367,65 @@ NON_PATHOGENIC: list[StrainInfo] = [
                "COMMENSAL", "environmental_soil,no_virulence_islands", 17965192,
                gcf="GCF_000019645.1"),
 
-    # ── B strain derivatives ──────────────────────────────────────────────────
-    StrainInfo("B_ATCC9637",     "Escherichia coli B str. ATCC 9637",
-               "LAB_B", "no_virulence_genes,B_lineage", 20840077),
+    # K-12 DH5alpha — cloning host, endA1/recA1 minus, phi80-lacZdeltaM15.
+    # GCF_002848225.1 confirmed complete genome in RefSeq.
+    StrainInfo("K12_DH5alpha",   "Escherichia coli K-12 str. DH5alpha",
+               "K12", "no_virulence_genes,endA1,recA1_minus,phi80_lacZdeltaM15", 0,
+               gcf="GCF_002848225.1"),
+
+    # K-12 RV308 — industrial fermentation/expression host, K-12 derivative.
+    # GCF_000952955.1 confirmed complete genome in RefSeq.
+    StrainInfo("K12_RV308",      "Escherichia coli K-12 substr. RV308",
+               "K12", "no_virulence_genes,industrial_host,lacI_minus", 0,
+               gcf="GCF_000952955.1"),
+
+    # K-12 AB1157 — classical repair genetics strain (uvrA, lexA2), no virulence.
+    # GCF_020023255.1 confirmed complete genome in RefSeq.
+    StrainInfo("K12_AB1157",     "Escherichia coli K-12 substr. AB1157",
+               "K12", "no_virulence_genes,uvrA6,lexA2_allele", 0,
+               gcf="GCF_020023255.1"),
+
+    # K-12 J53 — azide-resistant K-12 derivative, used as plasmid-free recipient.
+    # GCF_018417715.1 confirmed complete genome in RefSeq.
+    StrainInfo("K12_J53",        "Escherichia coli K-12 J53",
+               "K12", "no_virulence_genes,azide_resistant,metB", 0,
+               gcf="GCF_018417715.1"),
+
+    # K-12 HMS174 — recA derivative used as lambda phage host, no virulence.
+    # GCF_000953515.1 confirmed complete genome in RefSeq.
+    StrainInfo("K12_HMS174",     "Escherichia coli K-12 substr. HMS174",
+               "K12", "no_virulence_genes,recA_minus,lambda_host", 0,
+               gcf="GCF_000953515.1"),
+
+    # K-12 NCM3722 — wild-type K-12 derivative, prototrophic, no virulence.
+    # GCF_001043215.1 confirmed complete genome in RefSeq.
+    StrainInfo("K12_NCM3722",    "Escherichia coli NCM3722",
+               "K12", "no_virulence_genes,prototrophic_K12", 0,
+               gcf="GCF_001043215.1"),
+
+    # K-12 NEB5-alpha — F'Iq variant of DH5alpha, commercial cloning host.
+    # GCF_013167075.1 confirmed complete genome in RefSeq.
+    StrainInfo("K12_NEB5alpha",  "Escherichia coli K-12 str. NEB5-alpha F'Iq",
+               "K12", "no_virulence_genes,phi80_lacZdeltaM15,lacIq", 0,
+               gcf="GCF_013167075.1"),
+
+    # E. coli B C41(DE3) — membrane protein expression host, B lineage; no virulence.
+    # Miroux & Walker (1996) J Mol Biol 260:289. GCF_000830035.1 complete genome.
+    StrainInfo("B_C41DE3",       "Escherichia coli B str. C41(DE3)",
+               "LAB_B", "no_virulence_genes,lon_minus_partial,ompT_minus", 8702691,
+               gcf="GCF_000830035.1"),
+
+    # E. coli B C43(DE3) — derivative of C41(DE3) for toxic protein expression.
+    # Miroux & Walker (1996). GCF_001039415.1 confirmed complete genome in RefSeq.
+    StrainInfo("B_C43DE3",       "Escherichia coli B str. C43(DE3)",
+               "LAB_B", "no_virulence_genes,lon_minus_partial,ompT_minus", 8702691,
+               gcf="GCF_001039415.1"),
+
+    # K-12 AG100 — antibiotic-selection K-12 strain, no virulence genes.
+    # GCF_000981485.1 confirmed complete genome in RefSeq.
+    StrainInfo("K12_AG100",      "Escherichia coli K-12 substr. AG100",
+               "K12", "no_virulence_genes,antibiotic_selection_marker", 0,
+               gcf="GCF_000981485.1"),
 ]
 
 ALL_STRAINS = PATHOGENIC + NON_PATHOGENIC

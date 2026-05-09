@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-Phase 2 (Proof-of-Concept) — XGBoost classifier with novel 7-feature vector.
+Phase 2 (Proof-of-Concept) — XGBoost classifier with 10-feature vector.
 
 Feature vector per candidate genomic region:
-  1. blastn_identity    — top BLASTn % identity against metagenome reads
-  2. cai_score          — Codon Adaptation Index (O157:H7 codon usage as reference)
-  3. gc_delta           — |GC% of marker − mean GC% of O157:H7 core genome|
-  4. srna_density       — sRNA binding site density (RNAfold MFE-based proxy)
-  5. align_coverage     — fraction of marker covered by BLAST hits
-  6. tier_encoded       — ordinal encoding: CONSERVED=0, MODERATE=1, DIVERGED=2
-  7. pangenome_score    — Anvi'o enrichment score (O-island gene frequency in pathogens)
+  1. blastn_identity        — top BLASTn % identity against metagenome reads
+  2. cai_score              — Codon Adaptation Index (Sharp & Li 1987; O157:H7 Sakai ORFeome)
+  3. gc_delta               — |GC% of marker − mean GC% of O157:H7 core genome| (50.5%)
+  4. srna_density           — AU-rich 10-mer fraction (sRNA binding site proxy; Peer & Margalit 2011)
+  5. align_coverage         — fraction of marker length non-redundantly covered by BLAST hits
+  6. kmer_deviation         — cosine distance of marker 4-mer profile from Sakai genome profile
+  7. presence_pathogenic    — fraction of pathogenic strains covering the marker (NUCmer)
+  8. presence_non_pathogenic — fraction of non-pathogenic strains covering the marker (NUCmer)
+  9. pangenome_score        — presence_pathogenic − presence_non_pathogenic
+  10. anvio_cluster_score    — mean Anvi'o gene-cluster enrichment score for overlapping Sakai genes
 
 XGBoost is chosen over logistic regression / SVM because:
   - Handles the non-linear interactions between CAI, GC delta, and tier (documented
@@ -30,13 +33,19 @@ Output:
 import csv
 import json
 import logging
+import os
+import re
+import subprocess
+import sys
 import warnings
+from math import exp, log as mlog
 from pathlib import Path
 from itertools import product
 
 import numpy as np
 import pandas as pd
 from Bio import SeqIO
+from Bio.Data import CodonTable
 from Bio.SeqUtils import gc_fraction
 import xgboost as xgb
 import shap
@@ -57,6 +66,8 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger(__name__)
+
+BIN_DIR = Path(sys.executable).parent
 
 REPO_ROOT   = Path(__file__).parents[2]
 MARKERS_DIR = REPO_ROOT / "data" / "results" / "markers"
@@ -86,19 +97,98 @@ def compute_gc_delta(seq: str) -> float:
     return abs(gc - REFERENCE_GC)
 
 
-def compute_cai_proxy(seq: str) -> float:
+def _predict_sakai_cds(genome_fasta: Path, out_dir: Path) -> Path:
+    """Run prodigal on Sakai genome to predict CDS; cache result to out_dir."""
+    cds_fasta = out_dir / "sakai_cds.fna"
+    if cds_fasta.exists():
+        return cds_fasta
+    prodigal = BIN_DIR / "prodigal"
+    if not prodigal.exists():
+        raise FileNotFoundError(
+            "prodigal not found in fp_pipeline env — run: conda install -c bioconda prodigal"
+        )
+    log.info("Predicting Sakai CDS with prodigal (one-time setup) → %s", cds_fasta.name)
+    subprocess.run(
+        [str(prodigal), "-i", str(genome_fasta), "-d", str(cds_fasta),
+         "-p", "single", "-q"],
+        check=True, capture_output=True,
+    )
+    return cds_fasta
+
+
+def _build_rscu(cds_fasta: Path) -> dict[str, float]:
     """
-    Approximate CAI using GC3 content as a proxy when full codon table
-    optimisation is unavailable. GC3 correlates strongly with CAI in
-    Escherichia (Sharp & Li 1987; r=0.89 across 4,000 E. coli genes).
-    Replace with full CAI computation once the CAI library is available.
+    Compute Relative Synonymous Codon Usage (RSCU) from CDS sequences.
+    RSCU_ij = X_ij / (1/n_i * sum_j X_ij)  where n_i = synonymous family size.
+    Codons in a synonymous family with zero total usage receive RSCU=1 (neutral).
     """
-    codons = [seq[i:i+3] for i in range(0, len(seq) - 2, 3) if len(seq[i:i+3]) == 3]
-    if len(codons) < 10:
-        return 0.5  # too short for reliable estimate
-    gc3 = sum(1 for c in codons if c[2] in ("G", "C")) / len(codons)
-    # Linearly rescale GC3 (0.3–0.7 typical range) to CAI-like [0, 1]
-    return min(max((gc3 - 0.3) / 0.4, 0.0), 1.0)
+    table = CodonTable.unambiguous_dna_by_name["Standard"]
+    aa_to_codons: dict[str, list[str]] = {}
+    for codon, aa in table.forward_table.items():
+        aa_to_codons.setdefault(aa, []).append(codon)
+
+    codon_counts: dict[str, int] = {}
+    for rec in SeqIO.parse(str(cds_fasta), "fasta"):
+        seq = str(rec.seq).upper()
+        for i in range(0, len(seq) - 2, 3):
+            codon = seq[i:i + 3]
+            if len(codon) == 3 and all(c in "ACGT" for c in codon):
+                codon_counts[codon] = codon_counts.get(codon, 0) + 1
+
+    rscu: dict[str, float] = {}
+    for aa, codons in aa_to_codons.items():
+        total = sum(codon_counts.get(c, 0) for c in codons)
+        n = len(codons)
+        for codon in codons:
+            rscu[codon] = (codon_counts.get(codon, 0) * n / total) if total > 0 else 1.0
+    return rscu
+
+
+def _compute_w(rscu: dict[str, float]) -> dict[str, float]:
+    """Relative adaptedness w_i = RSCU_i / max(RSCU_j) for synonymous family j."""
+    table = CodonTable.unambiguous_dna_by_name["Standard"]
+    aa_to_codons: dict[str, list[str]] = {}
+    for codon, aa in table.forward_table.items():
+        aa_to_codons.setdefault(aa, []).append(codon)
+
+    w: dict[str, float] = {}
+    for aa, codons in aa_to_codons.items():
+        max_rscu = max((rscu.get(c, 0.0) for c in codons), default=1.0) or 1.0
+        for codon in codons:
+            w[codon] = rscu.get(codon, 0.0) / max_rscu
+    return w
+
+
+_CAI_CACHE: dict[str, dict] = {}
+
+
+def compute_cai(seq: str) -> float:
+    """
+    Codon Adaptation Index (Sharp & Li 1987) relative to the O157:H7 Sakai ORFeome
+    predicted by prodigal. Returns geometric mean of per-codon relative adaptedness
+    (w_i) values. Returns 0.5 for sequences with fewer than 5 usable sense codons.
+    """
+    if "w" not in _CAI_CACHE:
+        cds_fasta = _predict_sakai_cds(REFERENCE, ML_DIR)
+        rscu = _build_rscu(cds_fasta)
+        _CAI_CACHE["w"] = _compute_w(rscu)
+        _CAI_CACHE["stops"] = set(CodonTable.unambiguous_dna_by_name["Standard"].stop_codons)
+        log.info("CAI reference built from Sakai ORFeome: %d codons in w-table",
+                 len(_CAI_CACHE["w"]))
+
+    w = _CAI_CACHE["w"]
+    stops = _CAI_CACHE["stops"]
+
+    seq = seq.upper()
+    log_sum, n = 0.0, 0
+    for i in range(0, len(seq) - 2, 3):
+        codon = seq[i:i + 3]
+        if len(codon) == 3 and codon not in stops and codon in w:
+            wi = w[codon]
+            if wi > 0:
+                log_sum += mlog(wi)
+                n += 1
+    return exp(log_sum / n) if n >= 5 else 0.5
 
 
 def compute_srna_density_proxy(seq: str) -> float:
@@ -153,23 +243,37 @@ def compute_kmer_deviation(seq: str, ref_seqs: dict[str, str], k: int = 4) -> fl
     return float(1.0 - cosine_sim)   # cosine distance: 0=identical, 1=orthogonal
 
 
+def _merge_intervals(starts: list[int], ends: list[int]) -> int:
+    """Total non-overlapping query length covered by (start, end) intervals."""
+    if not starts:
+        return 0
+    intervals = sorted(zip(starts, ends))
+    lo, hi = intervals[0]
+    total = 0
+    for s, e in intervals[1:]:
+        if s <= hi:
+            hi = max(hi, e)
+        else:
+            total += hi - lo + 1
+            lo, hi = s, e
+    total += hi - lo + 1
+    return total
+
+
 def compute_blast_features(marker_id: str, blast_df: pd.DataFrame) -> tuple[float, float]:
     """
     For a given marker, return (max_identity, coverage_fraction) from BLAST hits.
-    Coverage = fraction of marker length covered by ≥1 BLAST hit.
+    Coverage uses interval merging on query coordinates to avoid double-counting
+    overlapping hits from the same genomic region.
     """
     hits = blast_df[blast_df["qseqid"].str.startswith(marker_id)]
     if hits.empty:
         return 0.0, 0.0
     max_identity = hits["pident"].max()
-    # Estimate coverage: use total aligned length / marker length proxy
-    # Marker length is encoded in qseqid header as len=XXX
-    total_aligned = hits["length"].sum()
-    # Approximate marker length from header (len=XXXX)
-    import re
     match = re.search(r"len=(\d+)", marker_id)
     marker_len = int(match.group(1)) if match else 1000
-    coverage = min(total_aligned / max(marker_len, 1), 1.0)
+    covered = _merge_intervals(hits["qstart"].tolist(), hits["qend"].tolist())
+    coverage = min(covered / max(marker_len, 1), 1.0)
     return float(max_identity), float(coverage)
 
 
@@ -190,18 +294,6 @@ def load_marker_metadata() -> pd.DataFrame:
     if not meta.exists():
         raise FileNotFoundError(f"Run 03_extract_markers.py first: {meta}")
     return pd.read_csv(meta, sep="\t")
-
-
-def load_pangenome_scores() -> dict[str, float]:
-    """
-    Load Anvi'o enrichment scores if available. Falls back to a tier-derived
-    heuristic: CONSERVED=0.1, MODERATE=0.6, DIVERGED=0.9 (reflecting that
-    highly diverged regions are enriched in pathogen-unique gene clusters).
-    """
-    # COG functional enrichment is handled by compute_cog_enrichment_score.
-    # NUCmer-derived pangenome_score from compute_pangenome_presence covers
-    # the per-marker signal. Nothing left for this function to do.
-    return {}
 
 
 def compute_pangenome_presence(
@@ -270,8 +362,6 @@ def compute_anvio_cluster_score(meta: pd.DataFrame) -> pd.DataFrame:
 
     Returns DataFrame indexed by marker_id with column 'anvio_cluster_score'.
     """
-    import subprocess
-
     PATHOGENIC = {"EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC"}
 
     # ── 1. Contig name mapping: reformatted → original ────────────────────────
@@ -445,7 +535,6 @@ def build_feature_matrix(
     meta: pd.DataFrame,
     blast_df: pd.DataFrame,
     ref_seqs: dict[str, str],
-    pangenome_scores: dict[str, float],
     pan_presence: pd.DataFrame,
     anvio_scores: pd.DataFrame,
     cog_scores: pd.DataFrame,
@@ -464,15 +553,10 @@ def build_feature_matrix(
 
         max_id, coverage = compute_blast_features(mid, blast_df)
 
-        # NUCmer-derived pangenome presence features
         if mid in pan_presence.index:
             pan_score    = pan_presence.loc[mid, "pangenome_score"]
             pres_path    = pan_presence.loc[mid, "presence_pathogenic"]
             pres_nonpath = pan_presence.loc[mid, "presence_non_pathogenic"]
-        elif mid in pangenome_scores:
-            pan_score    = pangenome_scores[mid]
-            pres_path    = float("nan")
-            pres_nonpath = float("nan")
         else:
             pan_score    = 0.0
             pres_path    = 0.0
@@ -487,7 +571,7 @@ def build_feature_matrix(
             "marker_id":               mid,
             "tier":                    tier,
             "blastn_identity":         max_id,
-            "cai_score":               compute_cai_proxy(seq),
+            "cai_score":               compute_cai(seq),
             "gc_delta":                compute_gc_delta(seq),
             "srna_density":            compute_srna_density_proxy(seq),
             "align_coverage":          coverage,
@@ -580,11 +664,9 @@ def compute_shap(clf: xgb.XGBClassifier, df: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    # Load inputs
     meta     = load_marker_metadata()
     blast_df = load_blast_results()
     ref_seqs = {rec.id: str(rec.seq) for rec in SeqIO.parse(str(REFERENCE), "fasta")}
-    pan_scores = load_pangenome_scores()
 
     tiered_blocks_path = REPO_ROOT / "data" / "results" / "tiered_blocks.tsv"
     log.info("Computing pangenome presence/absence from NUCmer blocks")
@@ -603,8 +685,7 @@ def main() -> None:
     cog_scores = compute_cog_enrichment_score(meta)
 
     log.info("Building feature matrix for %d markers", len(meta))
-    df = build_feature_matrix(meta, blast_df, ref_seqs, pan_scores, pan_presence,
-                              anvio_scores, cog_scores)
+    df = build_feature_matrix(meta, blast_df, ref_seqs, pan_presence, anvio_scores, cog_scores)
 
     if df.empty:
         log.error("Feature matrix is empty — check upstream pipeline steps")
