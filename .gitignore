@@ -149,6 +149,9 @@ $RECYCLE.BIN/
 !docs/*.pdf
 !docs/*.svg
 
+# ── Curated metadata — force-tracked with git add -f (parent dir is ignored) ──
+# genome_manifest.tsv is committed despite data/ ignore — do not remove it
+
 # ── Thesis results: allow key output files ────────────────────────────────────
 !data/results/figures/*.png
 !data/results/figures/*.svg
