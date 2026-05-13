@@ -1,128 +1,15 @@
-# ── Python cache ──────────────────────────────────────────────────────────────
-__pycache__/
-**/__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-.installed.cfg
-*.egg
-.ipynb_checkpoints/
-*.ipynb_checkpoints/
-
-# ── Virtual environments ───────────────────────────────────────────────────────
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.conda/
-.python-version
-
-# ── Data directory (too large for git) ────────────────────────────────────────
 data/
-
-# ── Bioinformatics intermediate files ─────────────────────────────────────────
-*.fasta
-*.fastq
-*.fa
-*.fq
-*.sam
-*.bam
-*.vcf
-*.gff
-*.gtf
-*.bed
-*.delta
-*.coords
-*.blast
-*.hmm
-*.msa
-*.nwk
-*.newick
-
-# ── Large binary/intermediate pipeline outputs ────────────────────────────────
-data/results/pangenome/*.db
-data/results/pangenome/*.dmnd
-data/results/pangenome/*.gz
-data/results/pangenome/blast-search-results*
-data/results/pangenome/mcl-*
-data/results/pangenome/combined-aas*
-data/results/pangenome/reformatted/
-data/results/pangenome/contigs_dbs/
-data/results/pangenome/ANI/
-data/results/blast_screen/*.fasta
-data/results/blast_screen/metagenome_db.*
-data/results/ml/model_xgb.json
-data/results/nucmer/
-data/results/minimap2/*.paf
-
-# ── Allow key results and figures to be committed ─────────────────────────────
-!data/genomes/genome_manifest.tsv
-!data/results/figures/*.png
-!data/results/figures/*.svg
-!data/results/figures/*.pptx
-!data/results/markers/marker_metadata.tsv
-!data/results/ml/feature_matrix.tsv
-!data/results/ml/cv_results.tsv
-!data/results/ml/shap_values.tsv
-!data/results/ml/ablation_results.tsv
-!data/results/blast_screen/classification_metrics.tsv
-!data/results/bio_sanity/*.tsv
-!data/results/bio_sanity/*.txt
-!data/results/pangenome/enrichment_scores.tsv
-!data/results/tier_summary.tsv
-!data/results/tiered_blocks.tsv
-!data/results/minimap2/window_scores_500bp.tsv
-!data/results/minimap2/candidates_schemeA_500bp.tsv
-
-# ── Temporary files ────────────────────────────────────────────────────────────
-temp/
-tmp/
-*.tmp
-*.temp
-*.swp
-*~
-logs/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
 *.log
-
-# ── Graphics (large — allow exceptions above) ─────────────────────────────────
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.tiff
-*.bmp
-*.pdf
-*.ps
-*.svg
-*.eps
-
-# ── System files ──────────────────────────────────────────────────────────────
 .DS_Store
-.AppleDouble
-Thumbs.db
-$RECYCLE.BIN/
-
-# ── IDE files ─────────────────────────────────────────────────────────────────
-.idea/
-.vscode/
-*.sublime-project
-*.sublime-workspace
-.ropeproject/
-
-# ── Package archives ──────────────────────────────────────────────────────────
+*.fasta.fai
+*.bam
+*.bam.bai
+*.sam
+*.vcf
+*.gz
+*.tar
 *.zip
-*.tar.gz
-*.rar
-
-# ── Sensitive / machine-specific config ───────────────────────────────────────
-.netrc
-credentials.json
-.claude/mcp.json
-
-# ── MCP server venv — rebuild with: pip install -r requirements.txt ──────────
-mcp_server/.venv/
