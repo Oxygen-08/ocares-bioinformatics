@@ -312,7 +312,7 @@ def compute_pangenome_presence(
     A strain is counted as 'covering' a marker if it has ≥1 alignment block
     that overlaps the marker region on the same reference contig.
     """
-    PATHOGENIC = {"EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC"}
+    PATHOGENIC = {"EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC", "APEC"}
 
     blocks = pd.read_csv(tiered_blocks_path, sep="\t")
     # Strain → pathotype map
@@ -363,7 +363,7 @@ def compute_anvio_cluster_score(meta: pd.DataFrame) -> pd.DataFrame:
 
     Returns DataFrame indexed by marker_id with column 'anvio_cluster_score'.
     """
-    PATHOGENIC = {"EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC"}
+    PATHOGENIC = {"EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC", "APEC"}
 
     # ── 1. Contig name mapping: reformatted → original ────────────────────────
     orig_ids     = [r.id for r in SeqIO.parse(str(REFERENCE), "fasta")]
