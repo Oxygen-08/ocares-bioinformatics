@@ -22,7 +22,7 @@ TW11681	Escherichia coli str. TW11681	ETEC	ST,CS6,EAST1	25002529	ENTREZ_RESOLVED
 55989	Escherichia coli 55989	EAEC	aggR,aaiC,aafA,aat	19165319	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/55989/55989.fna	OK
 E2348_69	Escherichia coli str. E2348/69	EPEC	LEE,bfpA,eae-alpha,intimin-alpha	19682371	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/E2348_69/E2348_69.fna	OK
 TW10598	Escherichia coli O127:H6 str. TW10598	EPEC	LEE,bfpA,eae-alpha,intimin-alpha	0	GCF_018884405.1	/Users/user/bioinformatics/data/genomes/TW10598/TW10598.fna	OK
-SE11	Escherichia coli str. SE11	EPEC	LEE,eae,type-III-secretion	19897727	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/SE11/SE11.fna	OK
+SE11	Escherichia coli str. SE11	COMMENSAL	no_stx,no_LEE,wild_type_commensal,phylogroup_B2	18931093	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/SE11/SE11.fna	OK
 IHE3034	Escherichia coli str. IHE3034	NMEC	ibeA,neuC(K1),ompA,kpsMII,fimH	20952596	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/IHE3034/IHE3034.fna	OK
 CE10	Escherichia coli O7:K1 str. CE10	NMEC	kpsMII,iutA,iroN,hlyF,iss	22535208	GCF_000227625.1	/Users/user/bioinformatics/data/genomes/CE10/CE10.fna	OK
 LF82	Escherichia coli str. LF82	AIEC	fimH-variant,inv,csg,lpfA	20541499	ENTREZ_RESOLVED	/Users/user/bioinformatics/data/genomes/LF82/LF82.fna	OK
@@ -58,4 +58,5 @@ B_C41DE3	Escherichia coli B str. C41(DE3)	LAB_B	no_virulence_genes,lon_minus_par
 B_C43DE3	Escherichia coli B str. C43(DE3)	LAB_B	no_virulence_genes,lon_minus_partial,ompT_minus	8702691	GCF_001039415.1	/Users/user/bioinformatics/data/genomes/B_C43DE3/B_C43DE3.fna	OK
 K12_AG100	Escherichia coli K-12 substr. AG100	K12	no_virulence_genes,antibiotic_selection_marker	0	GCF_000981485.1	/Users/user/bioinformatics/data/genomes/K12_AG100/K12_AG100.fna	OK
 SMS_3_5	Escherichia coli SMS-3-5	COMMENSAL	environmental_soil,no_virulence_islands	17965192	GCF_000019645.1	/Users/user/bioinformatics/data/genomes/SMS_3_5/SMS_3_5.fna	OK
-K12_NEB5alpha	Escherichia coli K-12 str. NEB5-alpha F'Iq	K12	no_virulence_genes,phi80_lacZdeltaM15,lacIq	0	GCF_013167075.1	/Users/user/bioinformatics/data/genomes/K12_NEB5alpha/K12_NEB5alpha.fna	OK
+RS218	Escherichia coli RS218	NMEC	kpsMII,ibeA,iroN,ompA,neuC_K1,fimH	9316920	GCF_000016305.1	/Users/user/bioinformatics/data/genomes/RS218/RS218.fna	OK
+APEC_O1	Escherichia coli APEC O1	APEC	iroN,iutA,iss,hlyF,ompT,kpsFII,papC	17060476	GCF_000014845.1	/Users/user/bioinformatics/data/genomes/APEC_O1/APEC_O1.fna	OK
