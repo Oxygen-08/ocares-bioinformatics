@@ -1,116 +1,135 @@
-# Bacterial Genome Analysis Project
+# Hybrid Pangenomic Framework for Reducing False Positives in Metagenomic Pathogen Detection
 
-## Project Overview
-This project provides a set of tools and scripts for analyzing bacterial genomes, focusing on E. coli strains and related species. The analysis includes genome comparison, blast analysis, and identification of divergent regions.
+**Author:** Oluwatosin Samuel Oluwole  
+**Programme:** MSc Microbiology, Carl von Ossietzky University  
+**Supervisor:** Prof. Denis Shields  
 
-## Project Structure
+Computational pipeline for the master's thesis. Identifies *E. coli* O157:H7-specific pathogenicity markers through NUCmer tiered comparative genomics, validates them population-wide via Anvi'o pangenomics, and classifies them using a 10-feature XGBoost model (AUROC 0.673 vs BLAST baseline 0.552).
 
-The project is organized as follows:
+---
+
+## Repository Structure
 
 ```
-project_root/
+bioinformatics/
+├── scripts/analysis/          # Full pipeline — run in order
+│   ├── 01_download_genomes.py
+│   ├── 02_nucmer_tiered.py
+│   ├── 03_extract_markers.py
+│   ├── 04_simulate_metagenome.py
+│   ├── 05_blast_screen.py
+│   ├── 06_pangenome_anvio.sh   # Anvi'o only — separate env, run BEFORE step 07
+│   ├── 07_ml_classifier.py     # Requires Anvi'o output from step 06
+│   ├── 08_bio_sanity.py
+│   ├── plot_alignment_landscape.py
+│   ├── plot_results.py
+│   ├── plot_pangenome.py
+│   └── run_pipeline.sh        # Orchestrates steps 01–08 + plots
 ├── data/
-│   ├── raw_genomes/          # Original, unmodified genome files
-│   ├── processed_genomes/    # Modified or combined genome files
-│   └── reference_genomes/    # Reference genome files used for comparisons
-├── scripts/
-│   ├── analysis/             # Scripts for data analysis
-│   ├── visualization/        # Scripts for generating visualizations
-│   └── utils/                # Utility scripts for data processing
-├── results/
-│   ├── alignments/           # Genome alignment files (.coords, .delta)
-│   ├── blast_results/        # BLAST comparison outputs
-│   ├── divergent_regions/    # Identified divergent regions between genomes
-│   └── figures/              # Generated plots and visualizations
-├── notebooks/                # Jupyter notebooks for interactive analyses
-└── docs/                     # Documentation files
+│   ├── genomes/               # Downloaded assemblies (gitignored)
+│   ├── metagenome/            # Simulated reads (gitignored)
+│   └── results/               # TSV outputs and figures (key files tracked)
+├── thesis/
+│   ├── thesis_v2_synthesis.md        # Full MSc thesis
+│   ├── report_1_comparative_genomics.md
+│   ├── report_2_pangenome.md
+│   └── thesis_corrected.md           # Original draft (preserved)
+├── notebooks/
+│   └── project.ipynb
+├── mcp_server/                # NCBI E-utilities MCP server (dev tool)
+│   └── ncbi_server.py
+├── environment.yml            # fp_pipeline conda environment
+└── .pre-commit-config.yaml    # nbstripout hook
 ```
 
-## File Naming Conventions
+---
 
-### Genome Files
-- Format: `[species]_[serotype/strain]_[additional_info].fasta`
-- Example: `ecoli_o157h7_ref.fasta` - Reference genome for E. coli O157:H7
+## Reproducing the Pipeline
 
-### Analysis Results
-- Alignment files: `[reference]_vs_[query].[format]`
-- Divergent regions: `[genome]_divergent_regions.[format]`
-- BLAST results: `blast_[query]_vs_[reference].[format]`
+### Prerequisites
 
-## Directory Contents
+Two conda environments are required — the main pipeline and Anvi'o (which has strict dependency isolation):
 
-### data/
-Contains all genome sequence files used in the project:
+```bash
+# 1. Main pipeline environment
+conda env create -f environment.yml
+conda activate fp_pipeline
 
-- **raw_genomes/**: Original, unmodified genome files for various E. coli strains and related species.
-  - Includes strains like O157:H7, O111, O145:H28, O103:H2, and related species like E. fergusonii and E. alberti.
+# 2. Anvi'o environment (Step 06 only) — pinned versions
+conda env create -f environment_anvio.yml
+```
 
-- **processed_genomes/**: Genomes that have been modified or combined for specific analyses.
-  - Contains combined_genomes.fasta which includes multiple genomes for comparative analysis.
+### Execution order
 
-- **reference_genomes/**: Key reference genomes used as standards for comparisons.
-  - Includes E. coli O157:H7, E. coli SE11, and E. coli K12 references.
+Step 06 (Anvi'o pangenome) must complete **before** Step 07 (ML classifier), because
+`07_ml_classifier.py` reads `anvio_cluster_score` from the Anvi'o pangenome output.
 
-### scripts/
+**1. Run steps 01–05, 07–08 and all figures** (fp_pipeline env):
 
-- **analysis/**:
-  - `analyze_blast.py`: Processes BLAST comparison results
-  - `blast_statistics.py`: Generates statistical summaries of BLAST comparisons
-  - `divergent_analysis.py`: Analyzes divergent regions between genomes
-  - `extract_divergent_regions.py`: Extracts sequences from divergent regions
+```bash
+conda activate fp_pipeline
+bash scripts/analysis/run_pipeline.sh
+```
 
-- **visualization/**:
-  - `blast_results_heatmap.py`: Generates heatmaps of BLAST comparison results
-  - `blast_results_heatmap_adapted.py`: Modified version with additional features
+Options:
+```
+--skip-download    Skip genome download if already present
+--skip-simulate    Skip InSilicoSeq simulation if reads already exist
+--skip-plots       Skip figure generation
+```
 
-- **utils/**:
-  - `count_bases.py`: Utility for counting nucleotide compositions
-  - `merge-overlaps.py`: Merges overlapping genomic regions
-  - `suffix_tree_findmatch.py`: Finds sequence matches using suffix tree algorithm
+**2. Run Step 06 — Anvi'o Pangenome** (separate environment, run first):
 
-### results/
+```bash
+conda activate anvio8
+bash scripts/analysis/06_pangenome_anvio.sh
+```
 
-- **alignments/**: Contains genome alignment results
-  - Includes .coords files (showing coordinates of aligned regions)
-  - .delta files (NUCmer alignment outputs)
-  - matches.mum files (MUMmer match coordinates)
+This step requires ~4–6 hours on a modern laptop. Outputs are written to `data/results/pangenome/`.
 
-- **blast_results/**: BLAST comparison outputs and analyses
+### Data Availability
 
-- **divergent_regions/**: Contains files identifying regions that differ between genomes
-  - BED files marking aligned and non-aligned regions
-  - Extracted divergent sequences
+Large files (genomes, simulated reads, alignment outputs) are gitignored. Key results tracked in the repo:
 
-- **figures/**: Visualization outputs including heatmaps, phylogenetic trees, and other analysis plots
+| File | Description |
+|------|-------------|
+| `data/genomes/genome_manifest.tsv` | 60-strain manifest with GCF accessions, pathotypes, PMIDs |
+| `data/results/ml/feature_matrix.tsv` | 415 markers × 10 features |
+| `data/results/ml/cv_results.tsv` | 5-fold CV metrics |
+| `data/results/ml/shap_values.tsv` | Per-feature SHAP values |
+| `data/results/blast_screen/classification_metrics.tsv` | BLAST baseline per tier |
+| `data/results/pangenome/enrichment_scores.tsv` | COG14 enrichment (2,620 rows) |
+| `data/results/tier_summary.tsv` | 415-marker tier breakdown |
+| `data/results/figures/*.png` | All thesis figures |
 
-### notebooks/
-Contains Jupyter notebooks (`project.ipynb`) for interactive analysis and result visualization.
+---
 
-### docs/
-Contains project documentation, including exported notebook HTML files for easy viewing.
+## Key Results
 
-## Getting Started
+| Metric | Value |
+|--------|-------|
+| Alignment blocks (45 strains vs Sakai) | 17,519 |
+| Candidate markers extracted | 415 (134 CONSERVED / 172 MODERATE / 109 DIVERGED) |
+| BLAST screen AUROC (baseline) | 0.552 |
+| ML classifier AUROC (10-feature XGBoost) | **0.673 ± 0.063** |
+| DIVERGED markers absent from all K-12 strains | 54 / 109 (49.5%) |
+| Markers overlapping named EHEC virulence loci | 14 (LEE, Stx1/2, OI-48, tellurite) |
+| Anvi'o pangenome gene clusters | 12,204 (46 genomes) |
+| PATHOGEN-enriched COG14 functions (q < 0.05) | 6 |
 
-1. Clone this repository
-2. Navigate to the scripts directory to run specific analyses:
-   - For BLAST analysis: `python scripts/analysis/analyze_blast.py`
-   - For visualization: `python scripts/visualization/blast_results_heatmap.py`
-3. Explore the notebooks directory for interactive examples
+---
 
-## Dependencies
+## NCBI MCP Server (dev tool)
 
-- Python 3.6+
-- Biopython
-- Pandas
-- Matplotlib
-- Seaborn
-- NumPy
-- Jupyter (for notebooks)
+`mcp_server/ncbi_server.py` wraps NCBI E-utilities for live database queries within Claude Code sessions. Not required to reproduce the pipeline.
 
-## Analysis Workflow
+```bash
+export NCBI_EMAIL=your@email.com
+pip install -r mcp_server/requirements.txt
+```
 
-1. Genome comparison using NUCmer/MUMmer
-2. BLAST analysis to identify sequence similarities
-3. Extraction and analysis of divergent regions
-4. Visualization of results through heatmaps and other plots
+---
 
+## Citation
+
+Oluwole, O. S. (2025). *Hybrid Pangenomic and Sequence-Based Framework for Reducing False Positives in Pathogen Detection from Metagenomic Data*. MSc Thesis, Carl von Ossietzky University.

@@ -279,7 +279,7 @@ def main() -> None:
     reads_files = sorted(METAGENOME.glob("*.fasta")) + sorted(METAGENOME.glob("*.fna"))
     if not reads_files:
         log.error(
-            "No metagenome FASTA found in %s — run 05_simulate_metagenome.py first",
+            "No metagenome FASTA found in %s — run 04_simulate_metagenome.py first",
             METAGENOME,
         )
         return
