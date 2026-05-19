@@ -259,7 +259,27 @@ The two pangenome features are complementary. The NUCmer-derived scores measure 
 | `proportion_high_windows` | Fraction of 500 bp windows with divergence score >0.60 (PAI-like signature) |
 | `proportion_mid_windows` | Fraction of 500 bp windows in the 0.20–0.60 intermediate range |
 
-minimap2 v2.28 (Li, 2018) was used as an independent alignment engine to compute a per-window divergence gradient across 30 non-pathogenic commensal genomes, providing a representation of pathogen-vs-commensal divergence at 500 bp resolution. The analysis was conducted on the final corrected 30-commensal panel (including SE11, reclassified from EPEC to commensal prior to the run). Biological validation of this approach — a negative control comparison of pathogen-vs-pathogen alignments — showed 2.35% HIGH-gradient windows between O157:H7 strains versus 25.63% in pathogen-vs-commensal comparisons (10.9× enrichment), confirming that the gradient captures genuine pathotype-specific divergence rather than alignment noise. These five features were added to the core 10-feature model; the combined 15-feature model achieved AUROC 0.724 ± 0.028 under the balanced 30/30 panel and grouped CV protocol.
+**Alignment protocol:** minimap2 v2.28 (Li, 2018) was run in assembly-to-assembly mode (`-x asm5`, same-species preset) aligning the Sakai reference genome against each of the 30 non-pathogenic commensal genomes individually:
+
+```bash
+minimap2 -x asm5 Sakai.fasta commensal.fasta > sakai_vs_commensal.paf
+```
+
+The analysis was conducted on the final corrected 30-commensal panel (SE11 reclassified from EPEC to commensal; APEC excluded from the commensal set).
+
+**Window scoring:** The Sakai chromosome was partitioned into non-overlapping 500 bp windows. For each window and each commensal comparison, a divergence score was computed as:
+
+```
+divergence = 1 − (coverage_fraction × identity_fraction)
+```
+
+where `coverage_fraction` is the fraction of the 500 bp window covered by PAF alignment records and `identity_fraction` is the mean nucleotide identity of those alignments. A window with no coverage receives divergence = 1.0 (maximum). The per-window score was then averaged across all 30 commensal comparisons to produce a single genome-wide divergence landscape.
+
+**Threshold classification:** Windows were classified into three bands: LOW (divergence ≤ 0.20), MID (0.20–0.60), and HIGH (> 0.60). The HIGH threshold of 0.60 (Scheme A) was selected as biologically operational: it corresponds to the divergence expected for genomic regions with ≤40% commensal coverage at full identity — a signature consistent with pathogenicity islands (PAIs) characterised by abrupt alignment dropout at island boundaries.
+
+**Per-marker feature extraction:** For each of the 415 NUCmer-derived markers, the mean divergence score, proportion of HIGH and MID windows, flank conservation score (mean alignment identity in 2 kb flanking regions), and a composite marker score (`mean_divergence × flank_conservation × log1p(region_length)`) were extracted from the genome-wide window landscape and appended to the feature matrix.
+
+**Negative control:** To verify that the divergence gradient captures pathotype-specific signal rather than general alignment noise, Sakai was aligned against five independent O157:H7 pathogenic strains (EDL933, EC4115, TW14359, O26:H11, O103:H2). The proportion of HIGH-gradient windows in this pathogen-vs-pathogen comparison provides the null expectation.
 
 ---
 
@@ -367,6 +387,14 @@ Anvi'o functional enrichment analysis of the 46-strain pangenome (original panel
 - Metabolic functions specific to EHEC colonisation niche
 
 These six enriched functions were detected across 53 gene clusters — a sparse but biologically coherent set that validates the Anvi'o cluster score feature: the most differentially present gene clusters are functionally associated with the confirmed virulence biology of EHEC.
+
+### 4.5 minimap2 Divergence Gradient
+
+**Genome-wide enrichment.** Across the 30-commensal alignment panel, 25.63% of 500 bp windows in the Sakai chromosome were classified as HIGH-divergence (score > 0.60) under Scheme A. The negative control — Sakai aligned against five independent O157:H7 pathogenic strains — yielded 2.35% HIGH-gradient windows. The pathogen-vs-commensal enrichment is therefore **10.9×** relative to the pathogen-vs-pathogen baseline (25.63% / 2.35%). This confirms that the divergence gradient captures genuine pathotype-specific divergence: regions of the Sakai genome that are absent or highly altered in commensals are systematically concentrated in a distinct fraction of the chromosome, and that fraction is not equivalently elevated when comparing Sakai to other EHEC strains sharing the same O-island structure.
+
+**Per-marker gradient statistics.** Among the 415 candidate markers, DIVERGED-tier markers (identity < 85%, n=109) showed modestly higher mean divergence from commensals than MODERATE/CONSERVED markers (n=306): mean divergence 0.746 (SD 0.355) versus 0.712 (SD 0.373), and proportion of HIGH windows 82.6% versus 79.4%. The differences are small because all 415 markers are drawn from O-island regions already known to be divergent from commensals — the minimap2 gradient therefore provides a complementary signal within that set rather than a sharp tier separator. The more informative discriminator within the marker set is flank conservation: DIVERGED markers showed higher mean flank conservation (0.701) than MODERATE/CONSERVED markers (0.681), consistent with the expected PAI architecture of a horizontally inserted island flanked by conserved core-genome sequence.
+
+**Contribution to the ML model.** The five minimap2 features raised AUROC from the 10-feature baseline to 0.724 ± 0.028 — a contribution that, while modest in absolute AUROC terms, provides an alignment-independent channel not captured by the NUCmer-derived features. SHAP analysis confirmed that `mean_divergence` and `proportion_high_windows` contributed non-zero values in the combined model, with the gradient features partially rescuing markers where pangenome score alone was insufficient to distinguish DIVERGED from MODERATE classification.
 
 ---
 
