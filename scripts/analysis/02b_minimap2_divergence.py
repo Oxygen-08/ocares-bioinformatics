@@ -73,7 +73,7 @@ MIN_CANDIDATE = 500   # bp — discard candidates shorter than this
 MINIMAP_PRESET = "asm5"   # same-species assembly alignment
 
 PATHOGENIC_PATHOTYPES = {
-    "EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC",
+    "EHEC", "UPEC", "ETEC", "EAEC", "EPEC", "NMEC", "AIEC", "APEC",
 }
 
 # Four threshold schemes from the sentinel document
