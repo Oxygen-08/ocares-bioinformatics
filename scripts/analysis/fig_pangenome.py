@@ -31,7 +31,7 @@ PAN_DIR     = REPO_ROOT / "data" / "results" / "pangenome"
 VIZ_DIR     = REPO_ROOT / "data" / "results" / "figures"
 VIZ_DIR.mkdir(parents=True, exist_ok=True)
 
-N_GENOMES = 46
+N_GENOMES = 61
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ def load_genome_manifest() -> dict:
     manifest = manifest[manifest["label"].notna() & (manifest["label"] != "label")]
 
     # Binary classification: known pathogenic pathotypes vs non-pathogenic
-    pathogenic_types = {"EHEC", "EPEC", "ETEC", "UPEC", "NMEC", "EAEC", "AIEC"}
+    pathogenic_types = {"EHEC", "EPEC", "ETEC", "UPEC", "NMEC", "EAEC", "AIEC", "APEC"}
     result = {}
     for _, row in manifest.iterrows():
         label = str(row["label"]).strip()
@@ -67,17 +67,17 @@ def plot_pangenome_composition(gc: pd.DataFrame) -> None:
     # Partition into classic pangenome categories
     def category(n):
         if n == N_GENOMES:
-            return "Core\n(all 46)"
+            return "Core\n(all 61)"
         elif n >= int(0.95 * N_GENOMES):
             return "Soft-core\n(≥95%)"
         elif n >= 2:
-            return "Accessory\n(2–43)"
+            return "Accessory\n(2–60)"
         else:
             return "Unique\n(1 genome)"
 
     cluster_counts["category"] = cluster_counts["n_genomes"].apply(category)
-    cat_order = ["Core\n(all 46)", "Soft-core\n(≥95%)",
-                 "Accessory\n(2–43)", "Unique\n(1 genome)"]
+    cat_order = ["Core\n(all 61)", "Soft-core\n(≥95%)",
+                 "Accessory\n(2–60)", "Unique\n(1 genome)"]
     counts = cluster_counts["category"].value_counts().reindex(cat_order, fill_value=0)
 
     colours = ["#1565C0", "#42A5F5", "#FFA726", "#EF5350"]
@@ -93,7 +93,7 @@ def plot_pangenome_composition(gc: pd.DataFrame) -> None:
                 f"{val:,}\n({val/total*100:.1f}%)",
                 ha="center", va="bottom", fontsize=9)
     ax.set_ylabel("Number of gene clusters", fontsize=11)
-    ax.set_title(f"Pangenome composition\n46 genomes · {total:,} gene clusters total",
+    ax.set_title(f"Pangenome composition\n61 genomes · {total:,} gene clusters total",
                  fontsize=11, pad=8)
     ax.set_ylim(0, counts.max() * 1.18)
     ax.grid(axis="y", color="#eeeeee", linewidth=0.6)
@@ -107,7 +107,7 @@ def plot_pangenome_composition(gc: pd.DataFrame) -> None:
             wedgeprops=wedge_props, textprops={"fontsize": 10})
     ax2.set_title("Gene cluster partition\n(pangenome shell)", fontsize=11, pad=8)
 
-    plt.suptitle("*E. coli* O157:H7 Sakai — 46-genome Anvi'o pangenome",
+    plt.suptitle("*E. coli* O157:H7 Sakai — 61-genome Anvi'o pangenome",
                  fontsize=12, y=1.01, style="italic")
     plt.tight_layout()
     out = VIZ_DIR / "pangenome_composition.png"
@@ -155,7 +155,7 @@ def plot_enrichment(enrich: pd.DataFrame) -> None:
     ax.set_xlabel("Presence difference (pathogenic fraction − commensal fraction)",
                   fontsize=10)
     ax.set_title("PATHOGEN-enriched COG14 functions (q < 0.05)\n"
-                 "Anvi'o functional enrichment · 46-genome pangenome",
+                 "Anvi'o functional enrichment · 61-genome pangenome",
                  fontsize=11, pad=8)
     ax.axvline(0, color="#aaaaaa", linewidth=0.8, linestyle="--")
     ax.grid(axis="x", color="#eeeeee", linewidth=0.6)
