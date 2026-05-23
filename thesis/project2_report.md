@@ -9,7 +9,7 @@
 
 ## Abstract
 
-The 415 candidate pathogenicity markers identified by comparative genomic analysis in Project 1 were derived from a pairwise comparison of *E. coli* O157:H7 Sakai against a single commensal reference, SE11. While informative, pairwise comparison cannot confirm whether a divergent marker is genuinely pathotype-specific across the broader *E. coli* species population or simply an idiosyncratic feature of the SE11/Sakai strain pair. This project addresses that limitation by constructing a 46-genome Anvi'o pangenome — 30 pathogenic, 16 commensal/non-pathogenic strains — and conducting formal functional enrichment analysis. The pangenome comprises 12,204 gene clusters partitioned into core (14.7%), soft-core (2.1%), accessory (62.9%), and unique (20.3%) fractions. Functional enrichment with COG14 annotation (DIAMOND BLASTP) identified 6 functions significantly enriched in pathogenic strains (q < 0.05), including type III secretion system components, phage regulatory proteins, and transposase-associated mobile element functions consistent with O-island horizontal acquisition. A per-marker Anvi'o cluster score — computed as the mean differential gene cluster presence (pathogenic − commensal fraction) for gene clusters overlapping each NUCmer marker's coordinates — is derived as the population-level feature handoff to Project 3's machine learning classifier. Score range: −0.133 to +0.567.
+The 415 candidate pathogenicity markers identified by comparative genomic analysis in Project 1 were derived from a pairwise comparison of *E. coli* O157:H7 Sakai against a single commensal reference, SE11. While informative, pairwise comparison cannot confirm whether a divergent marker is genuinely pathotype-specific across the broader *E. coli* species population or simply an idiosyncratic feature of the SE11/Sakai strain pair. This project addresses that limitation by constructing a 61-genome Anvi'o pangenome — 31 pathogenic (including Sakai), 30 commensal/non-pathogenic strains — and conducting formal functional enrichment analysis using the same balanced 30/30 panel as the NUCmer analysis in Project 1. A per-marker Anvi'o cluster score — computed as the mean differential gene cluster presence (pathogenic − commensal fraction) for gene clusters overlapping each NUCmer marker's coordinates — is derived as the population-level feature handoff to Project 3's machine learning classifier.
 
 ---
 
@@ -19,7 +19,7 @@ Pairwise comparative genomics, as conducted in Project 1, provides high-resoluti
 
 Pan-genomics resolves this ambiguity by extending the comparison from a strain pair to a species-level population. The concept of the pan-genome — the complete gene repertoire of a species, partitioned into core (universal), accessory (distributed), and unique (strain-specific) fractions — was formalised by Tettelin et al. (2005) and has been applied extensively to *E. coli*, where the pan-genome is open and large: over 15,741 gene families across 61 sequenced strains, with only ~993 forming the core shared by all (Lukjancenko et al., 2010). The accessory genome, in which pathotype-specific markers reside, is therefore a vast reservoir that pairwise analysis can only sample.
 
-This project constructs the pangenome across the full 46-genome panel assembled for this research, identifies gene clusters enriched in pathogenic versus commensal strains, and derives the `anvio_cluster_score` — a quantitative per-marker population-level feature that encodes how systematically the genes within each NUCmer marker are more present in pathogenic strains. This score is the primary output of Project 2 and the direct input feature to the ML classifier in Project 3.
+This project constructs the pangenome across the full 61-genome panel assembled for this research, identifies gene clusters enriched in pathogenic versus commensal strains, and derives the `anvio_cluster_score` — a quantitative per-marker population-level feature that encodes how systematically the genes within each NUCmer marker are more present in pathogenic strains. This score is the primary output of Project 2 and the direct input feature to the ML classifier in Project 3.
 
 ---
 
@@ -27,22 +27,24 @@ This project constructs the pangenome across the full 46-genome panel assembled 
 
 ### 2.1 Genome Dataset
 
-The 46-genome panel used for pangenome construction comprised the same curated assemblies used for NUCmer analysis in Project 1, stratified by pathotype according to the curated genome manifest:
+The 61-genome panel used for pangenome construction is identical to the NUCmer comparison panel in Project 1: the O157:H7 Sakai reference plus 60 comparison genomes (30 pathogenic, 30 commensal/non-pathogenic), stratified by pathotype according to the curated genome manifest:
 
 | Pathotype group | N | Representative strains |
 |----------------|---|----------------------|
-| EHEC | 10 | O157:H7 Sakai, EDL933, TW14359, EC4115; O103, O111, O145, O104 |
-| EPEC | 3 | E2348/69, SE11, E22 |
+| EHEC | 11 | O157:H7 Sakai, EDL933, TW14359, EC4115, HUSEC2011; O26:H11, O103:H2, O111, O145, O55:H7, O104:H4 |
 | UPEC | 6 | CFT073, UTI89, 536, IAI39, UMN026, NA114 |
 | ETEC | 3 | H10407, E24377A, TW11681 |
-| NMEC | 2 | CE10, IHE3034 |
 | EAEC | 2 | 042, 55989 |
-| AIEC | 3 | LF82, HM605, UM146 |
-| COMMENSAL | 9 | HS, IAI1, SE15, ED1a, SMS-3-5, ECOR series |
-| K-12 | 10 | MG1655, DH10B, W3110, DH5α, HB101, BW2952 and others |
-| LAB / PROBIOTIC | 6 | BL21, BL21-DE3, B_REL606, Nissle1917 |
+| EPEC | 2 | E2348/69, TW10598 |
+| NMEC | 3 | CE10, IHE3034, RS218 |
+| AIEC | 3 | LF82, NRG857C, UM146 |
+| APEC | 1 | APEC O1 |
+| COMMENSAL | 10 | HS, IAI1, ED1a, SE15, SE11, ABU83972, ATCC25922, ATCC8739, ATCC11775, SMS-3-5 |
+| K-12 | 13 | MG1655, W3110, DH10B, MDS42, BW2952, RV308, DH5alpha, AB1157, J53, HMS174, NCM3722, NEB5alpha, AG100 |
+| LAB_B | 6 | BL21, BL21(DE3), REL606, W, C41(DE3), C43(DE3) |
+| PROBIOTIC | 1 | Nissle 1917 |
 
-**Total: 46 genomes (30 pathogenic, 16 commensal/non-pathogenic).** The binary PATHOGEN/COMMENSAL stratification used for enrichment analysis classified all strains with confirmed virulence pathotypes (EHEC, EPEC, UPEC, ETEC, NMEC, EAEC, AIEC) as PATHOGEN, and K-12, LAB, commensal, and probiotic strains as COMMENSAL.
+**Total: 61 genomes (31 pathogenic including Sakai, 30 commensal/non-pathogenic).** The binary PATHOGEN/COMMENSAL stratification classified all confirmed virulence pathotypes (EHEC, EPEC, UPEC, ETEC, NMEC, EAEC, AIEC, APEC) as PATHOGEN, and K-12, LAB_B, commensal, and probiotic strains as COMMENSAL. SE11, initially miscategorised as EPEC, was corrected to COMMENSAL per Oshima et al. (2008).
 
 ### 2.2 Anvi'o Pangenome Construction
 
@@ -52,20 +54,19 @@ The pangenome was constructed using Anvi'o v8 following the standard pangenomics
 
 **Step 2 — COG14 functional annotation.** NCBI COG14 annotation was performed using DIAMOND BLASTP against the COG14 protein database (downloaded 2024), via `anvi-run-ncbi-cogs`. DIAMOND was selected over BLAST for computational efficiency (~100× speedup on large protein databases). COG function, accession, and category were assigned to each predicted gene.
 
-**Step 3 — Genome storage.** `anvi-gen-genomes-storage` combined all 46 contig databases into a single `GENOMES.db`, providing the input to pangenome computation.
+**Step 3 — Genome storage.** `anvi-gen-genomes-storage` combined all 61 contig databases into a single `GENOMES.db`, providing the input to pangenome computation.
 
 **Step 4 — Pangenome computation.** `anvi-pan-genome` was run with the following parameters:
 ```bash
 anvi-pan-genome -g GENOMES.db -n ECOLI_PAN \
-    --use-ncbi-blast --blastp \
     --minbit 0.8 \
     --mcl-inflation 10 \
     --min-occurrence 1 \
     --num-threads 4
 ```
-Gene cluster construction used DIAMOND BLASTP for all-vs-all protein similarity scoring, with minbit filter 0.8 (requires reciprocal hits to reach at least 80% of the bitscore of each gene's self-hit) and MCL inflation parameter 10 (producing tight, conservative clusters). The result was a `PAN.db` containing 12,204 gene clusters.
+Gene cluster construction used DIAMOND BLASTP for all-vs-all protein similarity scoring, with minbit filter 0.8 (requires reciprocal hits to reach at least 80% of the bitscore of each gene's self-hit) and MCL inflation parameter 10 (producing tight, conservative clusters). The result was a `PAN.db` containing the full gene cluster table for the 61-genome panel.
 
-**Step 5 — Layer groups and enrichment.** Genome pathotype labels were imported as layer metadata using `anvi-import-misc-data`, creating a PATHOGEN/COMMENSAL binary grouping variable. Functional enrichment was computed with `anvi-compute-functional-enrichment`, which uses a logistic regression framework (Shaiber et al., 2020) to test whether each COG14 function is differentially distributed between the PATHOGEN and COMMENSAL groups. Q-values were computed using the `qvalue` R package (Storey, 2002). Results were exported as `enrichment_scores.tsv` (2,620 rows × 10 columns).
+**Step 5 — Layer groups and enrichment.** Genome pathotype labels were imported as layer metadata using `anvi-import-misc-data`, creating a PATHOGEN/COMMENSAL binary grouping variable. Functional enrichment was computed with `anvi-compute-functional-enrichment-in-pan` using the COG14_FUNCTION annotation source, which applies a logistic regression framework (Shaiber et al., 2020) to test whether each COG14 function is differentially distributed between the PATHOGEN and COMMENSAL groups. Q-values were computed using the `qvalue` R package (Storey, 2002). Results were exported as `enrichment_scores.tsv` (2,785 functions × 10 columns).
 
 ### 2.3 Anvi'o Cluster Score Derivation
 
@@ -75,7 +76,7 @@ For each of the 415 NUCmer-derived markers from Project 1, the `anvio_cluster_sc
 
 2. **Cluster lookup:** For each overlapping gene, retrieve the gene cluster ID it belongs to from the pangenome gene cluster table.
 
-3. **Differential presence:** For each gene cluster, compute the pathogen fraction (fraction of 30 pathogenic genomes containing at least one gene in the cluster) and the commensal fraction (fraction of 16 commensal genomes).
+3. **Differential presence:** For each gene cluster, compute the pathogen fraction (fraction of 31 pathogenic genomes containing at least one gene in the cluster) and the commensal fraction (fraction of 30 commensal genomes).
 
 4. **Score aggregation:** The `anvio_cluster_score` for a marker is the mean differential presence across all overlapping gene clusters:
 
@@ -84,7 +85,7 @@ anvio_cluster_score(marker) = mean( p_pathogen(cluster_i) − p_commensal(cluste
                                for all gene clusters i overlapping the marker
 ```
 
-A score of +0.567 (the maximum observed) indicates that the genes within a marker are, on average, 56.7 percentage points more likely to be present in pathogenic strains than commensal strains at the population level — independent of that marker's NUCmer identity to SE11. A score near zero indicates population-level neutrality; a negative score indicates commensal enrichment. The observed range of −0.133 to +0.567 reflects meaningful biological signal, with the highest-scoring markers corresponding to known O-island gene clusters.
+A positive score indicates that the genes within a marker are more likely to be present in pathogenic strains than commensal strains at the population level — independent of that marker's NUCmer identity to SE11. A score near zero indicates population-level neutrality; a negative score indicates commensal enrichment. The observed score range reflects meaningful biological signal, with the highest-scoring markers corresponding to known O-island gene clusters.
 
 ---
 
@@ -92,20 +93,20 @@ A score of +0.567 (the maximum observed) indicates that the genes within a marke
 
 ### 3.1 Pangenome Composition
 
-The Anvi'o pangenome of 46 *E. coli* genomes produced **12,204 gene clusters** partitioned as follows:
+The Anvi'o pangenome of 61 *E. coli* genomes produced **15,251 gene clusters** partitioned as follows:
 
 | Partition | Definition | N clusters | % |
 |-----------|-----------|-----------|---|
-| Core | Present in all 46 genomes | 1,794 | 14.7% |
-| Soft-core | Present in ≥95% of genomes (≥44) | 261 | 2.1% |
-| Accessory | Present in 2–43 genomes | 7,678 | 62.9% |
-| Unique | Present in exactly 1 genome | 2,471 | 20.3% |
+| Core | Present in all 61 genomes | 1,962 | 12.9% |
+| Soft-core | Present in ≥95% of genomes (≥58) | 1,223 | 8.0% |
+| Accessory | Present in 2–60 genomes | 6,189 | 40.6% |
+| Unique | Present in exactly 1 genome | 5,877 | 38.5% |
 
-The core genome (1,794 clusters) is consistent with published *E. coli* core genome estimates of ~993–2,000 gene families depending on curation stringency and MCL inflation parameters (Lukjancenko et al., 2010; Chaudhari et al., 2022). The large accessory fraction (62.9%) confirms that the *E. coli* pan-genome is open — adding new strains continues to contribute novel gene families — and that the majority of inter-strain diversity resides in genes that are differentially distributed, not universally absent or present.
+The core genome is consistent with published *E. coli* core genome estimates of ~993–2,000 gene families depending on curation stringency and MCL inflation parameters (Lukjancenko et al., 2010; Chaudhari et al., 2022). The large accessory fraction confirms that the *E. coli* pan-genome is open — adding new strains continues to contribute novel gene families — and that the majority of inter-strain diversity resides in genes that are differentially distributed, not universally absent or present.
 
-The unique fraction (20.3%, 2,471 clusters) is particularly relevant to pathotype detection: these are gene families found in only one sequenced strain, representing the most recently acquired or most rapidly diverging genomic content. O-island acquisitions in specific EHEC lineages are expected to contribute to this fraction.
+The unique fraction is particularly relevant to pathotype detection: these are gene families found in only one sequenced strain, representing the most recently acquired or most rapidly diverging genomic content. O-island acquisitions in specific EHEC lineages are expected to contribute to this fraction.
 
-**Figure 1.** Pangenome composition of 46 *E. coli* genomes. Left: bar chart showing gene cluster counts per partition. Right: proportional pie chart. Core genome (14.7%) represents the stable metabolic backbone shared across all strains; the accessory genome (62.9%) is the primary reservoir of pathotype-specific content.
+**Figure 1.** Pangenome composition of 61 *E. coli* genomes. Left: bar chart showing gene cluster counts per partition. Right: proportional pie chart. Core genome (12.9%) represents the stable metabolic backbone shared across all strains; the combined accessory and unique fractions (79.1%) constitute the primary reservoir of pathotype-specific content.
 
 ![Pangenome Composition](../data/results/figures/pangenome_composition.png)
 
@@ -113,16 +114,15 @@ The unique fraction (20.3%, 2,471 clusters) is particularly relevant to pathotyp
 
 ### 3.2 Functional Enrichment Analysis
 
-Of 2,620 COG14 function–gene cluster associations tested, **6 functions were significantly enriched in pathogenic strains** at q < 0.05 after FDR correction:
+Of 2,785 COG14 function–gene cluster associations tested, **83 functions were significantly enriched** at q < 0.05 after FDR correction: 66 PATHOGEN-enriched and 17 COMMENSAL-enriched. The top five PATHOGEN-enriched functions are shown below:
 
 | COG14 Function | Enrichment score | q-value | p_PATHOGEN | p_COMMENSAL |
 |----------------|-----------------|---------|-----------|------------|
-| Possible nuclease of RNase H fold (RuvC/YqgF family) | 16.99 | 0.041 | 0.963 | 0.421 |
-| Phage regulatory protein Rha | 16.57 | 0.041 | 0.815 | 0.211 |
-| Transposase (or inactivated derivative) | 16.15 | 0.041 | 0.889 | 0.316 |
-| Chromosome segregation ATPase / Phage-related minor tail protein | 15.59 | 0.041 | 0.630 | 0.053 |
-| ATP-dependent protease ClpP / Mu-like prophage major head subunit gpT | 15.59 | 0.041 | 0.630 | 0.053 |
-| Prophage antirepressor | 15.15 | 0.043 | 0.741 | 0.158 |
+| Prophage antirepressor | 25.7 | 4.0 × 10⁻⁴ | 0.74 | 0.10 |
+| ECF transporter transmembrane protein (EcfT) | 24.0 | 4.4 × 10⁻⁴ | 0.94 | 0.33 |
+| Transposase (or an inactivated derivative) | 24.0 | 4.4 × 10⁻⁴ | 0.94 | 0.33 |
+| ATP-dependent protease ClpP / Mu-like phage tail protein | 23.2 | 4.4 × 10⁻⁴ | 0.61 | 0.03 |
+| Chromosome segregation ATPase / phage-related tail protein | 23.2 | 4.4 × 10⁻⁴ | 0.61 | 0.03 |
 
 The functional profile of enriched genes is biologically coherent and directly interpretable in the context of EHEC genomics:
 
@@ -139,11 +139,11 @@ The functional profile of enriched genes is biologically coherent and directly i
 
 ### 3.3 Presence/Absence Pattern of Enriched Gene Clusters
 
-Cross-referencing the six enriched functional categories against their constituent gene cluster IDs and the full 46-genome presence/absence matrix reveals a consistent pattern: enriched clusters are broadly distributed across pathogenic strains but sparse or absent in K-12 and commensal isolates. The presence/absence heatmap (Figure 3) shows the characteristic block structure of pathotype-associated accessory gene content — enriched clusters are not Sakai-private, they are EHEC-lineage-common.
+Cross-referencing the enriched functional categories against their constituent gene cluster IDs and the full 61-genome presence/absence matrix reveals a consistent pattern: enriched clusters are broadly distributed across pathogenic strains but sparse or absent in K-12 and commensal isolates. The presence/absence heatmap (Figure 3) shows the characteristic block structure of pathotype-associated accessory gene content — enriched clusters are not Sakai-private, they are EHEC-lineage-common.
 
 This is the key result that pairwise comparative genomics could not provide. The markers identified in Project 1 are not artefacts of the Sakai/SE11 strain pair — they represent gene clusters that are systematically enriched across the broader pathogenic lineage.
 
-**Figure 3.** Presence/absence heatmap of gene clusters belonging to the six PATHOGEN-enriched COG14 functions across all 46 genomes. Blue = present, grey = absent. Genomes are ordered pathogenic (above red dashed line) / commensal (below). The block structure demonstrates that enriched clusters are broadly shared across pathogenic strains, not strain-private artefacts.
+**Figure 3.** Presence/absence heatmap of gene clusters belonging to the PATHOGEN-enriched COG14 functions across all 61 genomes. Blue = present, grey = absent. Genomes are ordered pathogenic (above red dashed line) / commensal (below). The block structure demonstrates that enriched clusters are broadly shared across pathogenic strains, not strain-private artefacts.
 
 ![Presence/Absence Heatmap](../data/results/figures/pangenome_heatmap.png)
 
@@ -151,15 +151,14 @@ This is the key result that pairwise comparative genomics could not provide. The
 
 ### 3.4 Anvi'o Cluster Score Distribution
 
-The `anvio_cluster_score` computed for each of the 415 NUCmer markers ranged from **−0.133 to +0.567**, with the following distribution across tiers:
+The `anvio_cluster_score` computed for each of the 415 NUCmer markers ranged from **−0.446 to +0.637**, with the following distribution across tiers:
 
-| Tier | Mean score | Median score | % with score > 0.1 |
-|------|-----------|-------------|---------------------|
-| DIVERGED | +0.198 | +0.181 | 61.5% |
-| MODERATE | +0.067 | +0.044 | 31.4% |
-| CONSERVED | +0.012 | +0.008 | 11.2% |
+| Tier | N markers | Mean score | Median score | % with score > 0.1 |
+|------|-----------|-----------|-------------|---------------------|
+| DIVERGED | 109 | 0.152 | 0.161 | 62.4% |
+| MODERATE | 306 | 0.147 | 0.161 | 58.8% |
 
-The monotonic increase in mean score from CONSERVED to DIVERGED confirms that the NUCmer tiering and the Anvi'o population-level signal are measuring the same biological phenomenon from two independent computational angles. A marker in the DIVERGED tier is, on average, also more enriched at the population level by the cluster score — the two lines of evidence converge. This convergence validates both methods and provides a stronger foundation for the ML classifier than either method alone.
+Both tiers show comparable mean scores (~0.15), reflecting that all 415 markers — regardless of NUCmer divergence level relative to SE11 — overlap gene clusters that are on average moderately enriched in pathogenic genomes at the population level. The higher proportion of DIVERGED markers with scores exceeding 0.1 (62.4% vs 58.8%) is consistent with the expectation that strongly diverged sequence regions more frequently harbour pathotype-specific gene content.
 
 The highest-scoring markers (score > 0.4) correspond to the same O-island loci identified in the Project 1 biological validation: LEE pathogenicity island, Stx prophage regions, and OI-48. The lowest scores (<0) correspond to core metabolic gene overlaps where commensals and pathogens are equally represented.
 
@@ -169,27 +168,27 @@ The highest-scoring markers (score > 0.4) correspond to the same O-island loci i
 
 ### 4.1 What the Pangenome Adds to Pairwise Analysis
 
-Project 1 established that 14 of 109 DIVERGED markers co-localise with named virulence loci. That result was based on coordinate overlap with published annotations — it confirmed biological plausibility but did not test whether those markers were genuinely common across the pathogenic lineage. Project 2 provides that test. The functional enrichment analysis shows that the gene cluster families overlapping these markers are systematically more present in 30 pathogenic strains spanning EHEC, EPEC, UPEC, ETEC, NMEC, EAEC, and AIEC pathotypes than in 16 commensal and K-12 strains. That is a qualitatively different and stronger claim.
+Project 1 established that 14 of 109 DIVERGED markers co-localise with named virulence loci. That result was based on coordinate overlap with published annotations — it confirmed biological plausibility but did not test whether those markers were genuinely common across the pathogenic lineage. Project 2 provides that test. The functional enrichment analysis shows that the gene cluster families overlapping these markers are systematically more present in 31 pathogenic strains spanning EHEC, EPEC, UPEC, ETEC, NMEC, EAEC, AIEC, and APEC pathotypes than in 30 commensal and K-12 strains. That is a qualitatively different and stronger claim.
 
-The MCL inflation parameter (10) was deliberately chosen to produce tight, conservative clusters — each cluster represents a narrow protein family rather than a broad superfamily. This conservatism means that the 12,204 clusters are finely resolved, reducing the risk that distantly related proteins from commensal and pathogenic strains are grouped together and cancel each other's presence signal.
+The MCL inflation parameter (10) was deliberately chosen to produce tight, conservative clusters — each cluster represents a narrow protein family rather than a broad superfamily. This conservatism means that the 15,251 clusters are finely resolved, reducing the risk that distantly related proteins from commensal and pathogenic strains are grouped together and cancel each other's presence signal.
 
 ### 4.2 Sparse Enrichment and Its Interpretation
 
-Only 6 of 2,620 tested functions reached q < 0.05 — 0.23% of the pangenome. This sparsity is not surprising given the diversity of the 46-genome panel. The panel spans 10 pathotypes including UPEC, ETEC, NMEC, and AIEC — organisms that cause very different diseases via different virulence mechanisms. Enrichment analysis that seeks functions common to all of them simultaneously is necessarily conservative: a function specific to EHEC but absent from UPEC will not reach significance in a pan-pathotype test.
+83 of 2,785 tested functions reached q < 0.05 — 3.0% of the pangenome. The 66 PATHOGEN-enriched functions reflect the diverse virulence gene repertoires of the eight pathotypes represented in the panel; the 17 COMMENSAL-enriched functions highlight metabolic specialisations in laboratory and commensal isolates. While the enrichment rate is modest, this is expected given the diversity of the 61-genome panel, which spans pathotypes causing very different diseases via distinct virulence mechanisms — a function specific to EHEC but absent from UPEC will not reach significance in a pan-pathotype test.
 
-The six functions that did reach significance are therefore the most broadly shared pan-pathotype enriched features — the molecular common denominators of pathogenic gene acquisition across the *E. coli* species. That they include transposase, phage regulatory, and prophage structural functions is telling: horizontal gene transfer machinery is the universal infrastructure through which all these pathotypes acquired their distinct virulence genes.
+The functions that reach significance are therefore the most broadly shared pan-pathotype enriched features — the molecular common denominators of pathogenic gene acquisition across the *E. coli* species. That the top hits include transposase, phage regulatory, and prophage structural functions is telling: horizontal gene transfer machinery is the universal infrastructure through which all these pathotypes acquired their distinct virulence genes.
 
 ### 4.3 The Cluster Score as a Bridge Feature
 
-The `anvio_cluster_score` is the conceptual bridge between Project 2 and Project 3. It takes the rich population-level information computed in the pangenome — 12,204 clusters × 46 genomes — and compresses it into a single per-marker scalar that the ML classifier can consume as a feature. The compression is biologically principled: for any given marker, the score asks "are the gene families contained in this marker more commonly pathogenic than commensal?" That is exactly the right question for a binary pathogenicity classifier.
+The `anvio_cluster_score` is the conceptual bridge between Project 2 and Project 3. It takes the rich population-level information computed in the pangenome — 15,251 clusters × 61 genomes — and compresses it into a single per-marker scalar that the ML classifier can consume as a feature. The compression is biologically principled: for any given marker, the score asks "are the gene families contained in this marker more commonly pathogenic than commensal?" That is exactly the right question for a binary pathogenicity classifier.
 
-The observed range (−0.133 to +0.567) and its monotonic enrichment from CONSERVED to DIVERGED tiers confirm that the score is capturing real signal. The ML classifier in Project 3 will learn how much weight to place on this score relative to the nine other features in the 10-dimensional vector — and SHAP analysis will confirm post-hoc whether the model's reliance on this feature is justified.
+The observed range (−0.446 to +0.637) confirms that the score is capturing real signal, with the highest-scoring markers concentrated at known EHEC virulence loci. The ML classifier in Project 3 will learn how much weight to place on this score relative to the nine other features in the 10-dimensional vector — and SHAP analysis will confirm post-hoc whether the model's reliance on this feature is justified.
 
 ---
 
 ## 5. Conclusion
 
-The 46-genome *E. coli* pangenome constructed with Anvi'o v8 and annotated with COG14 via DIAMOND comprises 12,204 gene clusters spanning a core-to-unique continuum consistent with the known open pan-genome structure of the species. Functional enrichment analysis identified 6 COG14 functions significantly enriched in pathogenic strains (q < 0.05), including transposase, phage regulatory, and prophage structural functions that collectively reflect the horizontal gene transfer history underlying *E. coli* pathotype diversification. The per-marker `anvio_cluster_score` (range −0.133 to +0.567) provides population-level population validation of the NUCmer-derived marker set and constitutes the primary feature handoff to the ML classifier in Project 3. Its monotonic increase from CONSERVED to DIVERGED tiers independently confirms the tiered classification system introduced in Project 1.
+The 61-genome *E. coli* pangenome constructed with Anvi'o v8 and annotated with COG14 via DIAMOND spans a core-to-unique continuum (1,962 core / 1,223 soft-core / 6,189 accessory / 5,877 unique) consistent with the known open pan-genome structure of the species. Functional enrichment analysis of 2,785 COG14 functions identified 83 significantly enriched in pathogenic or commensal strains at q < 0.05, including transposase, phage regulatory, and prophage structural functions that collectively reflect the horizontal gene transfer history underlying *E. coli* pathotype diversification. The per-marker `anvio_cluster_score` (range −0.446 to +0.637) provides population-level validation of the NUCmer-derived marker set and constitutes the primary feature handoff to the ML classifier in Project 3.
 
 ---
 

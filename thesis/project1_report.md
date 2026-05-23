@@ -9,7 +9,7 @@
 
 ## Abstract
 
-Metagenomic pathogen detection fails systematically when pathogenic and commensal organisms share large conserved genomic regions. This report describes the first stage of a three-project framework addressing this problem for *Escherichia coli* O157:H7 detection. Whole-genome alignment of the O157:H7 Sakai reference against 45 comparison strains using NUCmer produced 17,519 alignment blocks, from which 415 candidate pathogenicity markers were extracted and stratified by a novel tiered identity classification system: Conserved (≥95%, n=134), Moderately Diverged (85–94.9%, n=172), and Highly Diverged (<85%, n=109). A BLAST-based screen evaluated marker discriminative power against a simulated metagenomic community, achieving AUROC 0.552, sensitivity 17.4%, and specificity 92.1%. Biological validation confirmed that 49.5% of DIVERGED-tier markers are absent from all K-12 strains, and 14 markers co-localise with named EHEC virulence loci. These results establish the marker set and baseline performance that Projects 2 and 3 extend.
+Metagenomic pathogen detection fails systematically when pathogenic and commensal organisms share large conserved genomic regions. This report describes the first stage of a three-project framework addressing this problem for *Escherichia coli* O157:H7 detection. Whole-genome alignment of the O157:H7 Sakai reference against 60 comparison strains (balanced 30/30 pathogenic/commensal panel) using NUCmer produced 23,923 alignment blocks, from which 415 candidate pathogenicity markers were extracted and stratified by a novel tiered identity classification system: Conserved (≥95%, n=134), Moderately Diverged (85–94.9%, n=172), and Highly Diverged (<85%, n=109). A BLAST-based screen evaluated marker discriminative power against a simulated metagenomic community, achieving AUROC 0.552, sensitivity 17.4%, and specificity 92.1%. Biological validation confirmed that 49.5% of DIVERGED-tier markers are absent from all K-12 strains, and 14 markers co-localise with named EHEC virulence loci. These results establish the marker set and baseline performance that Projects 2 and 3 extend.
 
 ---
 
@@ -27,13 +27,13 @@ This project addresses the problem at its source: instead of querying the full g
 
 ### 2.1 Genome Dataset
 
-Complete and chromosome-level genome assemblies were retrieved from NCBI RefSeq using `ncbi-genome-download`. The final panel comprised **46 curated genomes**: 23 pathogenic (EHEC O157:H7 primary; STEC O111, O103, O145; EPEC E2348/69; UPEC CFT073, UTI89) and 23 commensal/non-pathogenic (K-12 MG1655, DH10B, W3110; SE11; environmental isolates). Strain curation required assembly level ≥ complete/chromosome, confirmed pathotype from published literature, and unambiguous BioSample metadata.
+Complete and chromosome-level genome assemblies were retrieved from NCBI RefSeq using `ncbi-genome-download`. The final panel comprised **61 curated genomes**: the O157:H7 Sakai reference plus 60 comparison genomes (30 pathogenic, 30 non-pathogenic/commensal), achieving a balanced panel. Pathogenic strains span EHEC O157:H7 isolates (EDL933, EC4115, TW14359, HUSEC2011, O26:H11, O103:H2, O111, O145, O55:H7, O104:H4), UPEC (CFT073, UTI89, 536, UMN026, IAI39, NA114), ETEC (H10407, E24377A, TW11681), EAEC (042, 55989), EPEC (E2348/69, TW10598), NMEC (IHE3034, CE10, RS218), AIEC (LF82, NRG857C, UM146), and APEC O1. Commensal strains include environmental and human gut commensals (HS, IAI1, ED1a, SE15, SE11, ABU83972, ATCC25922, ATCC8739, ATCC11775, SMS-3-5), K-12 laboratory strains (MG1655, W3110, DH10B, MDS42, BW2952, RV308, DH5alpha, AB1157, J53, HMS174, NCM3722, NEB5alpha, AG100), *E. coli* B strains (BL21, BL21(DE3), REL606, W, C41(DE3), C43(DE3)), and probiotic Nissle 1917. Strain curation required assembly level ≥ complete/chromosome, confirmed pathotype from published literature, and unambiguous BioSample metadata. One mislabelled strain (SE11, initially classified EPEC) was corrected to commensal based on Oshima et al. (2008, PMID 18931093).
 
-The primary reference for comparative analysis is *E. coli* O157:H7 Sakai (GenBank: BA000007.3) — the most completely annotated EHEC genome, with published O-island coordinates (Hayashi et al., 2001), sRNA atlas, and virulence gene catalogue. All 45 non-Sakai genomes were aligned against the Sakai reference.
+The primary reference for comparative analysis is *E. coli* O157:H7 Sakai (GenBank: BA000007.3) — the most completely annotated EHEC genome, with published O-island coordinates (Hayashi et al., 2001), sRNA atlas, and virulence gene catalogue. All 60 non-Sakai genomes were aligned against the Sakai reference.
 
 ### 2.2 NUCmer Alignment
 
-Pairwise whole-genome alignment was performed using NUCmer (MUMmer4; Marçais et al., 2018) for each of the 45 non-Sakai genomes against the Sakai reference:
+Pairwise whole-genome alignment was performed using NUCmer (MUMmer4; Marçais et al., 2018) for each of the 60 non-Sakai genomes against the Sakai reference:
 
 ```bash
 nucmer --maxmatch -c 500 -b 500 -l 100 Sakai.fasta query.fasta \
@@ -63,7 +63,7 @@ The rationale for a three-tier system rather than a binary conserved/divergent s
 
 ### 2.4 BLAST Screen
 
-Markers from all three tiers were compiled into a BLASTn database. A synthetic metagenomic community was constructed using InSilicoSeq 2.0 (Gourlé et al., 2024) with a NovaSeq HS25 151 bp paired-end error model. Three community compositions were simulated: EHEC-dominant (O157:H7 Sakai 60%), balanced (30%), and commensal-dominant (10%). Total reads: 750,000 per community; 150 bp read length.
+Markers from all three tiers were compiled into a BLASTn database. A synthetic metagenomic community was constructed using InSilicoSeq 2.0 (Gourlé et al., 2024) with an Illumina HiSeq 2500 paired-end error model (`--model HiSeq`). Three community compositions were simulated: high spike (O157:H7 Sakai 10%), mid spike (5%), and low spike (1%), with the remaining abundance distributed across commensal strains (SE11, K-12 MG1655, Nissle 1917, HS, IAI1). Total: 500,000 read pairs per community; 150 bp read length. The low-spike community (1% EHEC abundance) was the primary evaluation scenario.
 
 Simulated reads were queried against the marker database (e-value ≤ 1×10⁻⁵). A threshold classifier was applied: reads aligning at ≥95% identity were called positive (pathogen-derived). Performance was evaluated per tier and combined using confusion matrix statistics, sensitivity, specificity, precision, and AUROC. The commensal-dominant community was the primary evaluation scenario.
 
@@ -81,11 +81,11 @@ Two post-hoc validation analyses were conducted on the DIVERGED-tier markers:
 
 ### 3.1 Alignment Landscape
 
-NUCmer alignment of the Sakai reference against 45 comparison strains produced **17,519 alignment blocks** spanning the 5.5 Mb Sakai chromosome and two plasmids (pO157, pOSAK1). The alignment landscape (Figure 1) reveals the characteristic genomic architecture of EHEC: broad, high-identity alignment coverage in core metabolic and ribosomal loci, punctuated by large non-aligning gaps at O-island coordinates that become progressively deeper in commensals compared to pathogenic STEC relatives.
+NUCmer alignment of the Sakai reference against 60 comparison strains produced **23,923 alignment blocks** spanning the 5.5 Mb Sakai chromosome and two plasmids (pO157, pOSAK1). The alignment landscape (Figure 1) reveals the characteristic genomic architecture of EHEC: broad, high-identity alignment coverage in core metabolic and ribosomal loci, punctuated by large non-aligning gaps at O-island coordinates that become progressively deeper in commensals compared to pathogenic STEC relatives.
 
 The visual correspondence between alignment gaps and published O-island positions provides an immediate, pre-computational validation of the approach: the pipeline is finding exactly the genomic regions biology predicts should be pathogen-specific.
 
-**Figure 1.** Alignment landscape of 45 *E. coli* strains aligned against O157:H7 Sakai. Each horizontal segment represents one NUCmer alignment block; colour encodes identity tier (blue = CONSERVED ≥95%, orange = MODERATE 85–94.9%, red = DIVERGED <85%). Strains are ordered by pathotype; dashed horizontal lines separate pathotype groups. Large gaps in commensal strain rows correspond to O-island positions.
+**Figure 1.** Alignment landscape of 60 *E. coli* comparison strains aligned against O157:H7 Sakai. Each horizontal segment represents one NUCmer alignment block; colour encodes identity tier (blue = CONSERVED ≥95%, orange = MODERATE 85–94.9%, red = DIVERGED <85%). Strains are ordered by pathotype; dashed horizontal lines separate pathotype groups. Large gaps in commensal strain rows correspond to O-island positions.
 
 ![Alignment Landscape](../data/results/figures/alignment_landscape.png)
 
@@ -93,7 +93,7 @@ The visual correspondence between alignment gaps and published O-island position
 
 ### 3.2 Marker Extraction
 
-Tiered classification of the 17,519 alignment blocks produced:
+Tiered classification of the 23,923 alignment blocks produced:
 
 | Tier | N markers | % of total |
 |------|-----------|-----------|
@@ -174,13 +174,13 @@ The resolution is not to lower the identity threshold — that would restore sen
 
 ### 4.3 The Marker Set as a Foundation
 
-The 415-marker dataset produced here — particularly the 109 DIVERGED-tier markers, of which 54 are absent from K-12 and 14 overlap confirmed virulence loci — constitutes the empirical foundation for the remaining projects. Project 2 builds the pangenome across 46 strains to provide population-level confirmation of marker lineage specificity. Project 3 constructs the ML classifier that uses features derived from these markers to substantially improve on the BLAST screen's AUROC of 0.552.
+The 415-marker dataset produced here — particularly the 109 DIVERGED-tier markers, of which 54 are absent from K-12 and 14 overlap confirmed virulence loci — constitutes the empirical foundation for the remaining projects. Project 2 builds the pangenome across all 61 strains to provide population-level confirmation of marker lineage specificity. Project 3 constructs the ML classifier that uses features derived from these markers to substantially improve on the BLAST screen's AUROC of 0.552.
 
 ---
 
 ## 5. Conclusion
 
-Comparative genomic alignment of *E. coli* O157:H7 Sakai against 45 strains produced 17,519 alignment blocks. Tiered identity classification yielded 415 candidate pathogenicity markers stratified by divergence from commensal sequence. A BLAST-based screen established a baseline AUROC of 0.552 with sensitivity 17.4% and specificity 92.1% in a commensal-dominant simulated metagenome. Biological validation confirmed 49.5% K-12 absence and recovery of 14 markers in named EHEC virulence loci. These results establish the marker set and quantify the performance ceiling of pure sequence identity classification, motivating the pangenomic and machine learning extensions in Projects 2 and 3.
+Comparative genomic alignment of *E. coli* O157:H7 Sakai against 60 comparison strains (balanced 30/30 panel) produced 23,923 alignment blocks. Tiered identity classification yielded 415 candidate pathogenicity markers stratified by divergence from commensal sequence. A BLAST-based screen established a baseline AUROC of 0.552 with sensitivity 17.4% and specificity 92.1% in a commensal-dominant simulated metagenome. Biological validation confirmed 49.5% K-12 absence and recovery of 14 markers in named EHEC virulence loci. These results establish the marker set and quantify the performance ceiling of pure sequence identity classification, motivating the pangenomic and machine learning extensions in Projects 2 and 3.
 
 ---
 
