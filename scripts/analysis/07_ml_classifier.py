@@ -1,18 +1,30 @@
 #!/usr/bin/env python3
 """
-Phase 2 (Proof-of-Concept) — XGBoost classifier with 10-feature vector.
+XGBoost classifier — 17-feature multi-modal pathogen marker vector.
 
 Feature vector per candidate genomic region:
-  1. blastn_identity        — top BLASTn % identity against metagenome reads
-  2. cai_score              — Codon Adaptation Index (Sharp & Li 1987; O157:H7 Sakai ORFeome)
-  3. gc_delta               — |GC% of marker − mean GC% of O157:H7 core genome| (50.5%)
-  4. srna_density           — AU-rich 10-mer fraction (sRNA binding site proxy; Peer & Margalit 2011)
-  5. align_coverage         — fraction of marker length non-redundantly covered by BLAST hits
-  6. kmer_deviation         — cosine distance of marker 4-mer profile from Sakai genome profile
-  7. presence_pathogenic    — fraction of pathogenic strains covering the marker (NUCmer)
-  8. presence_non_pathogenic — fraction of non-pathogenic strains covering the marker (NUCmer)
-  9. pangenome_score        — presence_pathogenic − presence_non_pathogenic
+  1.  blastn_identity        — top BLASTn % identity against metagenome reads
+  2.  cai_score              — Codon Adaptation Index (Sharp & Li 1987; O157:H7 Sakai ORFeome)
+  3.  gc_delta               — |GC% of marker − mean GC% of O157:H7 core genome| (50.5%)
+  4.  srna_density           — AU-rich 10-mer fraction (sRNA binding site proxy; Peer & Margalit 2011)
+  5.  align_coverage         — fraction of marker length non-redundantly covered by BLAST hits
+  6.  kmer_deviation         — cosine distance of marker 4-mer profile from Sakai genome profile
+  7.  presence_pathogenic    — fraction of pathogenic strains covering the marker (NUCmer)
+  8.  presence_non_pathogenic — fraction of non-pathogenic strains covering the marker (NUCmer)
+  9.  pangenome_score        — presence_pathogenic − presence_non_pathogenic
   10. anvio_cluster_score    — mean Anvi'o gene-cluster enrichment score for overlapping Sakai genes
+  ── minimap2 divergence gradient (5 features) ──
+  11. mean_divergence        — mean minimap2 gradient score across the marker window
+  12. flank_conservation_2000bp — mean conservation score of 2000 bp flanking regions
+  13. marker_score_2000bp    — combined divergence + flank score in 2000 bp window
+  14. proportion_high_windows — fraction of windows scoring > 0.60 (HIGH divergence)
+  15. proportion_mid_windows — fraction of windows scoring 0.30–0.60 (MID divergence)
+  ── evolutionary amelioration features (Phase 3 pipeline) ──
+  16. Cosine_Distance        — cosine distance of cluster 59-dim RSCU vector from core baseline
+                               (0 = identical codon style to core; 1 = maximally divergent)
+  17. Delta_CAI              — mean(CAI_cluster) − median(CAI_core); negative values indicate
+                               ancestral codon usage mismatching (horizontal acquisition signal)
+                               Absent-gene imputation: 1.0 (maximum translational incompatibility)
 
 XGBoost is chosen over logistic regression / SVM because:
   - Handles the non-linear interactions between CAI, GC delta, and tier (documented
@@ -660,18 +672,23 @@ def build_feature_matrix(
 # ── Model training ────────────────────────────────────────────────────────────
 
 FEATURE_COLS = [
+    # ── NUCmer / compositional baseline (10) ─────────────────────────────────
     "blastn_identity", "cai_score", "gc_delta",
     "srna_density", "align_coverage",
     "kmer_deviation",
     "presence_pathogenic", "presence_non_pathogenic", "pangenome_score",
     "anvio_cluster_score",
-    # minimap2 divergence gradient features (branch: minimap2-gradient)
+    # ── minimap2 divergence gradient (5) ─────────────────────────────────────
     # populated when data/results/minimap2/candidates_schemeA_500bp.tsv exists
     "mean_divergence", "flank_conservation_2000bp", "marker_score_2000bp",
     "proportion_high_windows", "proportion_mid_windows",
+    # ── evolutionary amelioration features — Phase 3 pipeline (2) ────────────
+    # pre-computed by calculate_core_reference.py + compute_evolutionary_features.py
+    # + integrate_evolutionary_features.py; absent-gene fill value = 1.0
+    "Cosine_Distance", "Delta_CAI",
 ]
 
-# Features always present (NUCmer pipeline); minimap2 features are optional
+# Features always present (NUCmer pipeline); minimap2 and evolutionary are optional
 _CORE_FEATURES = [
     "blastn_identity", "cai_score", "gc_delta",
     "srna_density", "align_coverage",
@@ -680,8 +697,123 @@ _CORE_FEATURES = [
     "anvio_cluster_score",
 ]
 
+_EVO_FEATURES = ["Cosine_Distance", "Delta_CAI"]
 
-def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
+
+def merge_evolutionary_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Merge Cosine_Distance and Delta_CAI from the Phase 3 pre-computed feature
+    matrix into the freshly built base feature matrix.
+
+    Reads from the existing feature_matrix.tsv (written by
+    integrate_evolutionary_features.py) using marker_id as the join key.
+    Falls back to neutral flag 1.0 for any unmatched markers or if Phase 3
+    has not yet been run — consistent with the absent-gene imputation contract
+    documented in integrate_evolutionary_features.py.
+    """
+    existing_path = ML_DIR / "feature_matrix.tsv"
+    if existing_path.exists():
+        try:
+            existing = pd.read_csv(existing_path, sep="\t",
+                                   usecols=["marker_id", "Cosine_Distance", "Delta_CAI"])
+            if "Cosine_Distance" in existing.columns and "Delta_CAI" in existing.columns:
+                df = df.merge(existing[["marker_id", "Cosine_Distance", "Delta_CAI"]],
+                              on="marker_id", how="left")
+                n_missing = df["Cosine_Distance"].isna().sum()
+                if n_missing:
+                    log.warning(
+                        "%d markers had no evolutionary feature match — "
+                        "filling with neutral flag 1.0", n_missing,
+                    )
+                df["Cosine_Distance"] = df["Cosine_Distance"].fillna(1.0)
+                df["Delta_CAI"]       = df["Delta_CAI"].fillna(1.0)
+                log.info(
+                    "Evolutionary features merged — Cosine_Distance range [%.4f, %.4f] | "
+                    "Delta_CAI range [%.4f, %.4f]",
+                    df["Cosine_Distance"].min(), df["Cosine_Distance"].max(),
+                    df["Delta_CAI"].min(),       df["Delta_CAI"].max(),
+                )
+                return df
+        except (KeyError, pd.errors.ParserError) as exc:
+            log.warning("Could not read evolutionary features from existing matrix (%s) — "
+                        "filling with 1.0", exc)
+
+    # Phase 3 not yet run — neutral flag imputation
+    log.warning(
+        "Phase 3 evolutionary features not found in %s — "
+        "Cosine_Distance and Delta_CAI filled with 1.0 (run "
+        "integrate_evolutionary_features.py to populate them)", existing_path,
+    )
+    df["Cosine_Distance"] = 1.0
+    df["Delta_CAI"]       = 1.0
+    return df
+
+
+def plot_feature_importance_chart(
+    clf: xgb.XGBClassifier,
+    feature_names: list[str],
+) -> None:
+    """
+    Two-panel XGBoost native feature importance chart:
+      Left  — Gain (average improvement in loss per split using this feature)
+      Right — Weight (total number of times this feature is used in splits)
+
+    Evolutionary features (Cosine_Distance, Delta_CAI) are highlighted in amber
+    so their rank relative to baseline pangenome features is immediately visible.
+    """
+    booster = clf.get_booster()
+
+    def _to_series(importance_type: str) -> pd.Series:
+        scores = booster.get_score(importance_type=importance_type)
+        s = pd.Series({f: scores.get(f, 0.0) for f in feature_names})
+        return s.sort_values(ascending=True)
+
+    gain_s   = _to_series("gain")
+    weight_s = _to_series("weight")
+
+    evo_set = set(_EVO_FEATURES)
+    fig, axes = plt.subplots(1, 2, figsize=(15, max(5, len(feature_names) * 0.42 + 1.5)))
+
+    for ax, (series, xlabel) in zip(axes, [
+        (gain_s,   "Gain — mean loss improvement per split"),
+        (weight_s, "Weight — total split count"),
+    ]):
+        colours = ["#e07b54" if f in evo_set else "#4c8bbf" for f in series.index]
+        bars = ax.barh(range(len(series)), series.values, color=colours,
+                       edgecolor="white", linewidth=0.5)
+        ax.set_yticks(range(len(series)))
+        ax.set_yticklabels(series.index, fontsize=8.5)
+        ax.set_xlabel(xlabel, fontsize=9)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.grid(axis="x", color="#eeeeee", linewidth=0.5)
+
+        # Annotate bars with rank position of evo features
+        for i, (feat, val) in enumerate(zip(series.index, series.values)):
+            if feat in evo_set:
+                ax.text(val + series.max() * 0.01, i, f"  ▲ {feat}",
+                        va="center", fontsize=7.5, color="#c0392b", fontweight="bold")
+
+    from matplotlib.patches import Patch
+    fig.legend(
+        handles=[
+            Patch(color="#4c8bbf", label="Baseline pangenome / compositional features"),
+            Patch(color="#e07b54", label="Evolutionary amelioration: Cosine_Distance / Delta_CAI"),
+        ],
+        loc="lower center", ncol=2, fontsize=8.5, bbox_to_anchor=(0.5, -0.03),
+    )
+    fig.suptitle(
+        f"XGBoost Feature Importance — Gain & Weight\n"
+        f"{len(feature_names)}-Feature Classifier  |  fp_pipeline env",
+        fontsize=11, y=1.02,
+    )
+    plt.tight_layout()
+    out = VIZ_DIR / "feature_importance_gain_weight.png"
+    plt.savefig(out, dpi=160, bbox_inches="tight")
+    plt.close()
+    log.info("Feature importance chart (Gain + Weight) saved: %s", out)
+
+
+def train_and_evaluate(df: pd.DataFrame) -> tuple[xgb.XGBClassifier, list[str]]:
     # Use all FEATURE_COLS that are actually populated (minimap2 cols may be zeros)
     available = [c for c in FEATURE_COLS if c in df.columns and df[c].notna().all()]
     # Drop minimap2 features if all zero (pipeline ran without 02b)
@@ -690,8 +822,15 @@ def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
     has_mm = any(df.get(c, pd.Series([0])).sum() > 0 for c in mm_cols)
     if not has_mm:
         available = [c for c in available if c not in mm_cols]
-    log.info("Training with %d features%s", len(available),
-             " (+ minimap2 gradient features)" if has_mm else "")
+    has_evo = all(c in available for c in _EVO_FEATURES)
+    log.info(
+        "=== fp_pipeline env — training with %d features "
+        "[minimap2=%s | evolutionary_evo=%s] ===",
+        len(available),
+        "YES" if has_mm  else "NO",
+        "YES" if has_evo else "NO",
+    )
+    log.info("Active feature set: %s", available)
     X = df[available].values
     y = df["label"].values
     # Group by genomic bin (500 kb windows on the main chromosome) so that
@@ -736,39 +875,52 @@ def train_and_evaluate(df: pd.DataFrame) -> xgb.XGBClassifier:
         return_train_score=True,
     )
 
-    log.info("%d-fold grouped CV (500kb bins) — AUROC: %.3f ± %.3f | AUPRC: %.3f ± %.3f | F1: %.3f ± %.3f",
-             n_splits,
-             cv_results["test_roc_auc"].mean(),    cv_results["test_roc_auc"].std(),
-             cv_results["test_average_precision"].mean(), cv_results["test_average_precision"].std(),
-             cv_results["test_f1"].mean(),          cv_results["test_f1"].std())
+    auroc = cv_results["test_roc_auc"].mean()
+    auroc_std = cv_results["test_roc_auc"].std()
+    auprc = cv_results["test_average_precision"].mean()
+    auprc_std = cv_results["test_average_precision"].std()
+    f1    = cv_results["test_f1"].mean()
+    f1_std = cv_results["test_f1"].std()
+
+    log.info("=" * 62)
+    log.info("  BASELINE METRICS — %d-fold grouped CV (500 kb spatial bins)", n_splits)
+    log.info("  Feature count : %d  (including Cosine_Distance + Delta_CAI)",
+             len(available))
+    log.info("  AUROC         : %.3f ± %.3f", auroc, auroc_std)
+    log.info("  AUPRC         : %.3f ± %.3f", auprc, auprc_std)
+    log.info("  F1-score      : %.3f ± %.3f", f1,    f1_std)
+    log.info("=" * 62)
 
     # Save CV metrics
     cv_df = pd.DataFrame({k: v for k, v in cv_results.items()})
+    cv_df["n_features"]    = len(available)
+    cv_df["feature_set"]   = str(available)
     cv_df.to_csv(ML_DIR / "cv_results.tsv", sep="\t", index=False)
 
     # Fit final model on full dataset
     clf.fit(X, y)
     clf.save_model(str(ML_DIR / "model_xgb.json"))
     log.info("Model saved: %s", ML_DIR / "model_xgb.json")
-    return clf
+    return clf, available
 
 
 def compute_shap(clf: xgb.XGBClassifier, df: pd.DataFrame) -> None:
-    X = df[FEATURE_COLS].values
+    active = [c for c in FEATURE_COLS if c in df.columns and df[c].notna().all()]
+    X = df[active].values
     explainer = shap.TreeExplainer(clf)
     shap_vals = explainer.shap_values(X)
 
     # Single model summary plot
-    plt.figure(figsize=(8, 5))
-    shap.summary_plot(shap_vals, X, feature_names=FEATURE_COLS, show=False)
-    plt.title("SHAP Feature Importance — Tiered Marker Classifier")
+    plt.figure(figsize=(9, max(5, len(active) * 0.4 + 1)))
+    shap.summary_plot(shap_vals, X, feature_names=active, show=False)
+    plt.title(f"SHAP Feature Importance — {len(active)}-Feature Classifier (fp_pipeline env)")
     plt.tight_layout()
     plt.savefig(VIZ_DIR / "shap_summary.png", dpi=150, bbox_inches="tight")
     plt.close()
-    log.info("SHAP summary plot saved")
+    log.info("SHAP summary plot saved: %s", VIZ_DIR / "shap_summary.png")
 
     # Save raw SHAP values
-    shap_df = pd.DataFrame(shap_vals, columns=FEATURE_COLS)
+    shap_df = pd.DataFrame(shap_vals, columns=active)
     shap_df["marker_id"] = df["marker_id"].values
     shap_df.to_csv(ML_DIR / "shap_values.tsv", sep="\t", index=False)
 
@@ -923,9 +1075,16 @@ def main() -> None:
         log.error("Feature matrix is empty — check upstream pipeline steps")
         return
 
+    # Merge pre-computed evolutionary amelioration features (Phase 3 pipeline).
+    # Reads Cosine_Distance and Delta_CAI from the existing feature_matrix.tsv,
+    # which was populated by integrate_evolutionary_features.py. Falls back to
+    # neutral flag 1.0 if Phase 3 has not been run.
+    log.info("=== fp_pipeline env — merging evolutionary amelioration features ===")
+    df = merge_evolutionary_features(df)
+
     df.to_csv(ML_DIR / "feature_matrix.tsv", sep="\t", index=False)
-    log.info("Feature matrix: %d rows × %d features", len(df), len(FEATURE_COLS))
-    log.info("Class balance: %d positives / %d negatives",
+    log.info("Feature matrix written: %d rows × %d columns", *df.shape)
+    log.info("Class balance: %d positives (DIVERGED) / %d negatives",
              df["label"].sum(), (df["label"] == 0).sum())
 
     if args.ablation:
@@ -935,11 +1094,12 @@ def main() -> None:
         log.info("Ablation complete. Results: %s", ML_DIR / "ablation_results.tsv")
         return
 
-    clf = train_and_evaluate(df)
+    clf, active_features = train_and_evaluate(df)
     compute_shap(clf, df)
     compute_shap_comparison(df)
+    plot_feature_importance_chart(clf, active_features)
 
-    log.info("ML pipeline complete. Outputs in %s", ML_DIR)
+    log.info("=== fp_pipeline env — ML pipeline complete. Outputs in %s ===", ML_DIR)
 
 
 if __name__ == "__main__":
