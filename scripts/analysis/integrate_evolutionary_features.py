@@ -17,8 +17,12 @@ Fill values for the two edge cases, documented here as the canonical record:
       Cosine_Distance = 0.0  (core is the reference by construction)
       Delta_CAI       = 0.0  (no deviation from core baseline)
   • Absent gene (no overlapping Sakai genes, or cluster not in Phase 2 output):
-      Cosine_Distance = 1.0  (maximum distance — neutral flag per task directive)
-      Delta_CAI       = 0.0  (no information — neutral flag)
+      Cosine_Distance = 1.0  (maximum penalty — represents maximum geometric divergence
+                               from the core RSCU reference; gene is functionally absent
+                               from this genomic context)
+      Delta_CAI       = 1.0  (maximum penalty — represents total translational
+                               incompatibility; absent gene contributes no expression
+                               efficiency signal relative to the core genome baseline)
 
 Modifies in-place:
   data/results/ml/feature_matrix.tsv
@@ -54,9 +58,25 @@ REFERENCE_REFORM = PAN_DIR / "reformatted" / "O157H7_Sakai.fna"
 FEATURES_TSV    = METRICS_DIR / "accessory_evolutionary_features.tsv"
 MATRIX_TSV      = ML_DIR / "feature_matrix.tsv"
 
-# Neutral fill values (see module docstring for rationale)
+# Imputation constants for absent or unresolvable gene clusters.
+# These values are applied when a marker has no overlapping Sakai genes
+# or when a gene cluster has no Phase 2 feature data.
+#
+# Cosine_Distance = 1.0: maximum geometric penalty. A gene absent from the
+#   genome contributes maximum codon-style divergence from the core reference —
+#   the gene's translational machinery is entirely foreign or unrepresented.
+#   Documented choice for peer review: absent ≡ maximally distant.
 NEUTRAL_COS  = 1.0
-NEUTRAL_DCAI = 0.0
+#
+# Delta_CAI = 1.0: maximum translational incompatibility penalty. An absent
+#   gene contributes no CAI signal, and its absence is interpreted as total
+#   deviation from core translation efficiency. This prevents the neutral
+#   assumption (0.0) from masking the biological reality of gene absence.
+#   Documented choice for peer review: absent ≡ maximally incompatible.
+NEUTRAL_DCAI = 1.0
+#
+# Core cluster fill values: core genes ARE the reference by construction,
+# so both features are identically zero (no distance, no deviation).
 CORE_COS     = 0.0
 CORE_DCAI    = 0.0
 
@@ -148,9 +168,12 @@ def main() -> None:
         ]
 
         if overlap.empty:
-            # No Sakai genes overlap this marker at all
-            cos_col.append(NEUTRAL_COS)
-            dcai_col.append(NEUTRAL_DCAI)
+            # IMPUTATION: no Sakai genes overlap this marker region.
+            # Absent gene → maximum distance penalty for both features.
+            # Cosine_Distance=1.0: maximum codon-style divergence from core.
+            # Delta_CAI=1.0: maximum translational incompatibility from core.
+            cos_col.append(NEUTRAL_COS)   # imputed: absent gene, max geometric divergence
+            dcai_col.append(NEUTRAL_DCAI) # imputed: absent gene, max translational penalty
             n_missing += 1
             continue
 
@@ -172,8 +195,12 @@ def main() -> None:
             # If cid not in feat_df and not core: skip (shouldn't occur normally)
 
         if not cos_vals:
-            cos_col.append(NEUTRAL_COS)
-            dcai_col.append(NEUTRAL_DCAI)
+            # IMPUTATION: Sakai genes overlapped but none had a resolvable
+            # cluster ID (all NaN assignments). Treat as absent.
+            # Cosine_Distance=1.0: maximum codon-style divergence from core.
+            # Delta_CAI=1.0: maximum translational incompatibility from core.
+            cos_col.append(NEUTRAL_COS)   # imputed: unresolvable cluster, max geometric divergence
+            dcai_col.append(NEUTRAL_DCAI) # imputed: unresolvable cluster, max translational penalty
             n_missing += 1
         else:
             cos_col.append(float(np.mean(cos_vals)))
