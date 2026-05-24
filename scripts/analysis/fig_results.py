@@ -37,17 +37,24 @@ BLAST_DIR = REPO_ROOT / "data" / "results" / "blast_screen"
 VIZ_DIR   = REPO_ROOT / "data" / "results" / "figures"
 VIZ_DIR.mkdir(parents=True, exist_ok=True)
 
+# Full 17-feature set — must stay in sync with 07_ml_classifier.py FEATURE_COLS
 FEATURE_COLS = [
+    # NUCmer / compositional baseline
     "blastn_identity", "cai_score", "gc_delta",
     "srna_density", "align_coverage",
     "kmer_deviation",
     "presence_pathogenic", "presence_non_pathogenic", "pangenome_score",
     "anvio_cluster_score",
+    # minimap2 divergence gradient
+    "mean_divergence", "flank_conservation_2000bp", "marker_score_2000bp",
+    "proportion_high_windows", "proportion_mid_windows",
+    # evolutionary amelioration (Phase 3 pipeline)
+    "Cosine_Distance", "Delta_CAI",
 ]
 
 FEATURE_LABELS = {
     "blastn_identity":         "BLASTn identity",
-    "cai_score":               "CAI (GC3 proxy)",
+    "cai_score":               "CAI score",
     "gc_delta":                "GC delta",
     "srna_density":            "sRNA density",
     "align_coverage":          "Alignment coverage",
@@ -56,6 +63,13 @@ FEATURE_LABELS = {
     "presence_non_pathogenic": "Commensal presence",
     "pangenome_score":         "Pangenome score (NUCmer)",
     "anvio_cluster_score":     "Cluster score (Anvi'o)",
+    "mean_divergence":         "Mean divergence (minimap2)",
+    "flank_conservation_2000bp": "Flank conservation 2kb",
+    "marker_score_2000bp":     "Marker score 2kb",
+    "proportion_high_windows": "Prop. HIGH windows",
+    "proportion_mid_windows":  "Prop. MID windows",
+    "Cosine_Distance":         "RSCU Cosine Distance",
+    "Delta_CAI":               "Delta-CAI (evo)",
 }
 
 
@@ -115,7 +129,8 @@ def plot_roc(df: pd.DataFrame) -> None:
     ax.set_xlabel("False Positive Rate", fontsize=12)
     ax.set_ylabel("True Positive Rate", fontsize=12)
     ax.set_title("ROC curve — ML classifier vs BLAST screen\n"
-                 "5-fold stratified CV on 415 markers", fontsize=12, pad=10)
+                 "17-feature XGBoost · 5-fold stratified CV · 415 markers",
+                 fontsize=12, pad=10)
     ax.legend(loc="lower right", fontsize=10)
     ax.set_xlim([-0.02, 1.02])
     ax.set_ylim([-0.02, 1.05])
@@ -161,7 +176,7 @@ def plot_confusion_matrices(df: pd.DataFrame) -> None:
         axes,
         [blast_cm, ml_cm],
         ["BLAST screen\n(sequence identity ≥ cutoff)",
-         "ML classifier\n(10-feature XGBoost)"],
+         "ML classifier\n(17-feature XGBoost)"],
     ):
         disp = ConfusionMatrixDisplay(
             confusion_matrix=cm,
@@ -196,16 +211,17 @@ def plot_feature_correlation(df: pd.DataFrame) -> None:
     feat_df = df[FEATURE_COLS].rename(columns=FEATURE_LABELS)
     corr = feat_df.corr(method="spearman")
 
-    fig, ax = plt.subplots(figsize=(9, 7))
+    n = len(FEATURE_COLS)
+    fig, ax = plt.subplots(figsize=(max(9, n * 0.65), max(7, n * 0.65)))
     mask = np.triu(np.ones_like(corr, dtype=bool), k=1)
     sns.heatmap(
         corr, mask=mask, ax=ax,
         cmap="RdBu_r", vmin=-1, vmax=1, center=0,
-        annot=True, fmt=".2f", annot_kws={"size": 8},
+        annot=True, fmt=".2f", annot_kws={"size": 7},
         linewidths=0.4, linecolor="#dddddd",
         square=True,
     )
-    ax.set_title("Spearman correlation — ML feature matrix\n"
+    ax.set_title("Spearman correlation — 17-feature ML matrix\n"
                  "Low inter-feature correlation confirms non-redundancy",
                  fontsize=11, pad=10)
     plt.tight_layout()

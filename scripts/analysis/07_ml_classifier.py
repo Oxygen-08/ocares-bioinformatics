@@ -932,21 +932,18 @@ def compute_shap_comparison(df: pd.DataFrame) -> None:
     """
     import numpy as np
 
-    mm_cols   = ["mean_divergence", "flank_conservation_2000bp", "marker_score_2000bp",
-                 "proportion_high_windows", "proportion_mid_windows"]
-    core_cols = [c for c in FEATURE_COLS if c in df.columns and c not in mm_cols]
+    mm_cols  = ["mean_divergence", "flank_conservation_2000bp", "marker_score_2000bp",
+                "proportion_high_windows", "proportion_mid_windows"]
+    evo_cols = list(_EVO_FEATURES)
+    core_cols = [c for c in FEATURE_COLS if c in df.columns
+                 and c not in mm_cols and c not in evo_cols]
     all_cols  = [c for c in FEATURE_COLS if c in df.columns]
 
     y = df["label"].values
     n_neg = (y == 0).sum(); n_pos = y.sum()
     spw = n_neg / max(n_pos, 1)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-    for ax, (label, feats) in zip(axes, [
-        ("Core 10 features\n(NUCmer baseline)  AUROC 0.717", core_cols),
-        ("Combined 15 features\n(+ gradient)  AUROC 0.709",  all_cols),
-    ]):
+    def _fit_and_shap(feats):
         clf = xgb.XGBClassifier(
             n_estimators=200, max_depth=4, learning_rate=0.05,
             subsample=0.8, colsample_bytree=0.8,
@@ -954,27 +951,47 @@ def compute_shap_comparison(df: pd.DataFrame) -> None:
             random_state=42, verbosity=0,
         )
         clf.fit(df[feats].values, y)
-        exp  = shap.TreeExplainer(clf)
-        sv   = exp.shap_values(df[feats].values)
-        mean_abs = np.abs(sv).mean(axis=0)
+        sv = shap.TreeExplainer(clf).shap_values(df[feats].values)
+        return np.abs(sv).mean(axis=0)
+
+    mean_core = _fit_and_shap(core_cols)
+    mean_all  = _fit_and_shap(all_cols)
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, max(6, len(all_cols) * 0.42 + 1.5)))
+
+    for ax, (feats, mean_abs, panel_label) in zip(axes, [
+        (core_cols, mean_core,
+         f"Core {len(core_cols)} features\n(NUCmer + compositional baseline)"),
+        (all_cols,  mean_all,
+         f"Full {len(all_cols)} features\n(+ minimap2 gradient + evolutionary amelioration)"),
+    ]):
         order = np.argsort(mean_abs)
 
+        def _colour(f):
+            if f in evo_cols: return "#c0392b"
+            if f in mm_cols:  return "#e07b54"
+            return "#4c8bbf"
+
         ax.barh(range(len(feats)), mean_abs[order],
-                color=["#e07b54" if f in mm_cols else "#4c8bbf" for f in [feats[i] for i in order]])
+                color=[_colour(feats[i]) for i in order])
         ax.set_yticks(range(len(feats)))
         ax.set_yticklabels([feats[i] for i in order], fontsize=8)
-        ax.set_xlabel("Mean |SHAP value|")
-        ax.set_title(label, fontsize=9, pad=8)
+        ax.set_xlabel("Mean |SHAP value|", fontsize=9)
+        ax.set_title(panel_label, fontsize=9, pad=8)
+        ax.spines[["top", "right"]].set_visible(False)
 
-    # Legend
     from matplotlib.patches import Patch
     fig.legend(handles=[
         Patch(color="#4c8bbf", label="NUCmer / compositional features"),
         Patch(color="#e07b54", label="minimap2 gradient features"),
-    ], loc="lower center", ncol=2, fontsize=8, bbox_to_anchor=(0.5, -0.02))
+        Patch(color="#c0392b", label="Evolutionary amelioration: Cosine_Distance / Delta_CAI"),
+    ], loc="lower center", ncol=3, fontsize=8, bbox_to_anchor=(0.5, -0.03))
 
-    fig.suptitle("SHAP Feature Importance Comparison\nCore-10 vs Combined-15 (minimap2-gradient branch)",
-                 fontsize=10, y=1.01)
+    fig.suptitle(
+        f"SHAP Feature Importance Comparison\n"
+        f"Core-{len(core_cols)} vs Full-{len(all_cols)}  |  AUROC 0.761 ± 0.032  |  fp_pipeline env",
+        fontsize=10, y=1.02,
+    )
     plt.tight_layout()
     out = VIZ_DIR / "shap_comparison_core10_vs_combined15.png"
     plt.savefig(out, dpi=150, bbox_inches="tight")
